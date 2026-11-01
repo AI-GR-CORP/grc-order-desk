@@ -36,3 +36,20 @@ export async function getKnowledgeProfile(sql: Db): Promise<string> {
   const [row] = await sql<{ content: string }[]>`select content from knowledge_profile where active limit 1`;
   return row?.content ?? '';
 }
+
+/**
+ * Re-runs a unit of work when Postgres aborts it for a deadlock (40P01) or serialization
+ * conflict (40001). Parallel imports can briefly lock the same contact row; the work is
+ * idempotent, so a quick retry is safe and avoids failing the whole job.
+ */
+export async function retryOnConflict<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (attempt >= tries || (code !== '40P01' && code !== '40001')) throw e;
+      await new Promise((r) => setTimeout(r, 150 * attempt + Math.random() * 350));
+    }
+  }
+}

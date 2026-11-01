@@ -1,6 +1,6 @@
 import { clamp01, normalizeIsoDate, similarity, truncate, TRACKED_CATEGORIES, type ThreadCategory } from '@grc/core';
 import type { BulkOrderExtraction, DevItemExtraction, ThreadExtraction } from '@grc/core/ai';
-import type { Db, Sql, Tx } from '../db';
+import { retryOnConflict, type Db, type Sql, type Tx } from '../db';
 import { canonicalCompanyId, findOrCreateCompany } from './companies';
 
 export interface ApplyMeta {
@@ -193,7 +193,7 @@ async function upsertBulkOrder(
 
 /** Writes one extraction result. Everything in one transaction; human-edited fields are never overwritten. */
 export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtraction, meta: ApplyMeta): Promise<void> {
-  await sql.begin(async (tx) => {
+  await retryOnConflict(() => sql.begin(async (tx) => {
     const [t] = await tx<{ company_id: string | null; company_locked: boolean; category_locked: boolean; category: ThreadCategory }[]>`
       select company_id, company_locked, category_locked, category from email_thread where id = ${threadId} for update`;
     if (!t) return;
@@ -247,7 +247,7 @@ export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtra
     const ctx = { threadId, companyId, meta };
     for (const d of x.dev_items) await upsertDevItem(tx, ctx, d);
     for (const b of x.bulk_orders) await upsertBulkOrder(tx, ctx, b);
-  });
+  }));
 }
 
 export type { Db };

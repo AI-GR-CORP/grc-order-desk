@@ -1,7 +1,7 @@
 import type { AppSettings } from '@grc/core';
 import { isBulkMailCategory, isSkippableMessage, parseGmailMessage, type GmailThread, type ParsedMessage } from '@grc/core/gmail';
 import { cleanEmailBody, isInternal, messageDirection } from '@grc/core/mail';
-import type { Sql } from '../db';
+import { retryOnConflict, type Sql } from '../db';
 
 export interface IngestResult {
   threadId: string;
@@ -40,7 +40,7 @@ export async function ingestThread(
   parsed.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
   const subject = parsed[0]!.subject || null;
 
-  return sql.begin(async (tx) => {
+  return retryOnConflict(() => sql.begin(async (tx) => {
     const [thread] = await tx<{ id: string }[]>`
       insert into email_thread (mailbox_id, gmail_thread_id, subject)
       values (${mailboxId}, ${g.id}, ${subject})
@@ -119,5 +119,5 @@ export async function ingestThread(
       where t.id = ${threadId}`;
 
     return { threadId, newMessageIds, needsTriageIds, messageCount: parsed.length };
-  });
+  }));
 }
