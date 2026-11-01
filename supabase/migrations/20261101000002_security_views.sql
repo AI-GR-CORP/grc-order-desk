@@ -141,6 +141,16 @@ create policy admin on team_member       for all    to authenticated using (is_a
 create policy admin on knowledge_profile for all    to authenticated using (is_app_admin()) with check (is_app_admin());
 create policy admin on app_user          for all    to authenticated using (is_app_admin()) with check (is_app_admin());
 
+-- Explicit privileges, so this works with Supabase's "Automatically expose new tables" turned OFF
+-- (recommended). Anonymous visitors get nothing; signed-in users still pass RLS on every row.
+revoke all on all tables in schema public from anon;
+grant usage on schema public to authenticated;
+grant select on all tables in schema public to authenticated;
+grant insert, update on dev_item, bulk_order, bulk_order_stage, email_thread, company, contact, item_thread,
+  correction, knowledge_profile, app_setting, team_member, app_user to authenticated;
+grant delete on team_member, app_user to authenticated;
+revoke all on sheet_baseline from authenticated;   -- worker only
+
 -- The refresh token column is never readable or writable from the browser.
 revoke all on mailbox from anon, authenticated;
 grant select (id, email, status, backfill_stage, backfill_progress, backfill_target, last_synced_at, last_error, created_at)
@@ -265,3 +275,11 @@ begin
   return v_id is not null;
 end $$;
 revoke execute on function enqueue_job(text, uuid, jsonb, text, int) from public, anon;
+
+-- Views are created after the blanket grant above, so grant them explicitly.
+grant select on v_needs_reply, v_dev_items, v_bulk_orders, v_non_moving, v_company_overview, v_ai_usage_month to authenticated;
+revoke all on v_needs_reply, v_dev_items, v_bulk_orders, v_non_moving, v_company_overview, v_ai_usage_month from anon;
+
+-- Functions the dashboard calls.
+grant execute on function is_app_user(), is_app_admin(), list_pending_users(), grant_access(uuid, text),
+  merge_company(uuid, uuid), enqueue_job(text, uuid, jsonb, text, int) to authenticated;

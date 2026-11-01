@@ -14,6 +14,8 @@ export interface CallOptions<T> {
   system: string;
   /** Per-call content (the email / thread). */
   user: string;
+  /** PDF attachments (PI, PO, test reports) the model should read, base64. */
+  documents?: { title: string; base64: string }[];
   schema: z.ZodType<T>;
   maxTokens: number;
   effort?: string;
@@ -61,7 +63,21 @@ function buildParams(opts: CallOptions<unknown>, modelId: string) {
     model: modelId,
     max_tokens: opts.maxTokens,
     system: [{ type: 'text' as const, text: opts.system, cache_control: { type: 'ephemeral' as const } }],
-    messages: [{ role: 'user' as const, content: opts.user }],
+    messages: [
+      {
+        role: 'user' as const,
+        content: opts.documents?.length
+          ? [
+              ...opts.documents.map((d) => ({
+                type: 'document' as const,
+                title: d.title.slice(0, 200),
+                source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: d.base64 },
+              })),
+              { type: 'text' as const, text: opts.user },
+            ]
+          : opts.user,
+      },
+    ],
     output_config,
   };
 }

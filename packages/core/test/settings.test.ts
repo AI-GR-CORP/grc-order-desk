@@ -10,6 +10,6 @@ describe('parseSettings', () => {
     expect(s.reply_sla_minutes).toBe(45);
     expect(s.non_moving_days).toBe(21);
     expect(s.business_hours.tz).toBe('Asia/Kolkata');
-    expect(s.ai_models.triage).toBe('claude-haiku-5-5');
+    expect(s.ai_models.triage).toBe('claude-sonnet-5-5'); expect(s.ai_models.extract).toBe('claude-opus-5-5');
   });
 });

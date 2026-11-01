@@ -33,7 +33,7 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
      - `https://<project>.supabase.co/auth/v1/callback` (dashboard sign-in)
      - `http://localhost:3000/api/gmail/callback` (local development, optional)
   - Internal means **only grcorporation.co.in Google accounts** can sign in with Google. Anyone else (e.g. Verelios) uses the "email me a sign-in link" option on the login page.
-- **Supabase** — new project, region **Mumbai (ap-south-1)**.
+- **Supabase** — new project, region **Mumbai (ap-south-1)**. On the create screen: keep *Enable Data API* on; turn *Automatically expose new tables* **off** and *Enable automatic RLS* **on** (the migrations grant exactly what the dashboard needs).
   - Authentication → Providers → **Google**: paste the client ID/secret from above. Keep **Email** enabled (for sign-in links).
   - Authentication → URL configuration: Site URL = `APP_URL`; add `APP_URL/auth/callback` to redirect URLs (and `http://localhost:3000/auth/callback` for development).
 - **Anthropic Console** — account on GRC's billing; create an API key.
@@ -101,6 +101,25 @@ pnpm import-sheet ./customer_portfolio.xlsx --items --only-unmatched   # add the
 If you'd rather show his sheet in the dashboard before Gmail is connected, run `--items` straight away (the accuracy check is then less meaningful).
 
 ---
+
+## AI models and cost
+
+Defaults (change any time in the `app_setting` row `ai_models`, no redeploy):
+
+| Job | Model | Why |
+|---|---|---|
+| Sorting each email | Claude Sonnet 5.5 (`AI_EFFORT_TRIAGE=medium`) | A missed customer email is the expensive mistake |
+| Filling the sheet columns + summaries | Claude Opus 5.5 (`AI_EFFORT_EXTRACT=high`) | Best extraction quality; reads PI/PO PDFs too |
+| Building the customer list and glossary | Claude Opus 5.5 | Done once, sets up everything else |
+
+What makes it accurate on GRC's mail (no fine-tuning is involved):
+1. The knowledge profile from the learning pass, reviewed by a person.
+2. Rows from GRC's own spreadsheet in every prompt (`import-sheet` first), so notes read the way the team writes them.
+3. The last 40 corrections people made in the dashboard, so the same mistake isn't repeated.
+4. PDF attachments (PI, PO, test reports) are read alongside the emails.
+5. `pnpm eval` scores the result against the spreadsheet before go-live.
+
+Settings → AI usage shows the real monthly cost. To cut cost later, set `extract` to `claude-sonnet-5-5`.
 
 ## Day to day
 

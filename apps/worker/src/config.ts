@@ -20,8 +20,8 @@ const EnvSchema = z.object({
   /** JSON map from Claude API model id to Bedrock model id / inference profile. */
   BEDROCK_MODEL_MAP: optionalString,
   /** Effort per purpose; empty string = don't send the parameter. */
-  AI_EFFORT_TRIAGE: z.string().default('low'),
-  AI_EFFORT_EXTRACT: z.string().default('medium'),
+  AI_EFFORT_TRIAGE: z.string().default('medium'),
+  AI_EFFORT_EXTRACT: z.string().default('high'),
   AI_CONCURRENCY: z.coerce.number().int().positive().default(4),
   /** Use the Message Batches API for backfill triage above this many emails. */
   AI_BATCH_MIN: z.coerce.number().int().nonnegative().default(50),

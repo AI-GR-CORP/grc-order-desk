@@ -79,3 +79,16 @@ describe('helpers', () => {
     expect(() => decryptSecret(enc, randomBytes(32).toString('base64'))).toThrow();
   });
 });
+
+import { buildLearningContext } from '../src/ai/prompts';
+describe('buildLearningContext', () => {
+  it('renders sheet examples and corrections, and nothing when empty', () => {
+    expect(buildLearningContext([], [])).toBe('');
+    const out = buildLearningContext(
+      [{ company: 'ARVIND FASHION', brand: 'UCLA', inquiry: 'DAISY', team_status: 'SAMPLES DISPATCH - WAITING FOR CUSTOMER FEEDBACK', stage: 'sample_dispatched' }],
+      [{ field: 'stage', ai_value: 'prices_shared', human_value: 'sample_dispatched', context: 'UCLA DAISY' }],
+    );
+    expect(out).toContain('ARVIND FASHION | UCLA | DAISY | - | SAMPLES DISPATCH');
+    expect(out).toContain('stage (UCLA DAISY): AI wrote "prices_shared" → team changed it to "sample_dispatched"');
+  });
+});

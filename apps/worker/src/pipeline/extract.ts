@@ -12,7 +12,10 @@ import { config } from '../config';
 import type { Ctx } from '../context';
 import type { Db } from '../db';
 import { errorMessage } from '../errors';
+import type { GmailApi } from '@grc/core/gmail';
 import { applyExtraction } from './apply';
+import { getLearningContext } from './learning';
+import { loadThreadPdfs } from './pdfs';
 import { loadThreadMessages } from './messages';
 
 export async function loadBulkStages(sql: Db): Promise<{ key: string; label: string }[]> {
@@ -28,6 +31,8 @@ export async function extractThread(
   settings: AppSettings,
   profile: string,
   threadId: string,
+  /** When given, PDF attachments (PI/PO/test reports) are read too. */
+  api?: GmailApi,
 ): Promise<boolean> {
   const { sql } = ctx;
   const [t] = await sql<{ company_id: string | null; summary: string | null; company_name: string | null }[]>`
@@ -54,12 +59,14 @@ export async function extractThread(
   ];
 
   const stages = await loadBulkStages(sql);
+  const learning = await getLearningContext(sql);
+  const documents = api ? await loadThreadPdfs(ctx, api, threadId) : [];
   const fit = fitThreadToBudget(messages, 60_000);
   const model = settings.ai_models.extract;
   const call = {
     purpose: 'extract' as const,
     model,
-    system: extractionSystem({ internalDomains: settings.internal_domains, knowledgeProfile: profile }, stages),
+    system: extractionSystem({ internalDomains: settings.internal_domains, knowledgeProfile: profile, learning }, stages),
     user: extractionUserContent({
       companyName: t.company_name,
       existing,
@@ -67,8 +74,9 @@ export async function extractThread(
       omittedCount: fit.omitted,
       messages: fit.kept,
     }),
+    documents,
     schema: ThreadExtractionSchema,
-    maxTokens: 16_000,
+    maxTokens: 32_000,
     effort: config().AI_EFFORT_EXTRACT || undefined,
   };
 

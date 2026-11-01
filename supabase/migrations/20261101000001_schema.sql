@@ -45,7 +45,7 @@ insert into app_setting (key, value) values
   ('freemail_domains',  '["gmail.com","yahoo.com","yahoo.co.in","outlook.com","hotmail.com","rediffmail.com","icloud.com"]'),
   ('login_domains',     '["grcorporation.co.in"]'),
   ('owner_emails',      '[]'),
-  ('ai_models',         '{"triage":"claude-haiku-5-5","extract":"claude-sonnet-5-5","discovery":"claude-sonnet-5-5"}'),
+  ('ai_models',         '{"triage":"claude-sonnet-5-5","extract":"claude-opus-5-5","discovery":"claude-opus-5-5"}'),
   ('column_labels',     '{}');
 
 -- ---------------------------------------------------------------------

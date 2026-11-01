@@ -40,7 +40,7 @@ export async function runExtractBackfill(ctx: Ctx, mailboxId: string): Promise<v
   const total = rows.length;
   let done = 0;
   const one = async (threadId: string) => {
-    await extractThread(ctx, settings, profile, threadId);
+    await extractThread(ctx, settings, profile, threadId, api);
     await ensureThumbnails(ctx, api, threadId);
     await recomputeReply(sql, settings, threadId);
     done++;

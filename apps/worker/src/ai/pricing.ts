@@ -15,6 +15,8 @@ interface Price {
 const PRICES: Record<string, Price> = {
   'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125, longInput: 0.5, longOutput: 2.5 },
   'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+  'claude-fable-5-1': { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
 };
 
 export interface UsageInfo {
@@ -26,7 +28,7 @@ export interface UsageInfo {
 }
 
 export function estimateCostUsd(u: UsageInfo, batch = false): number {
-  const p = PRICES[u.model] ?? PRICES['claude-sonnet-5-5']!;
+  const p = PRICES[u.model] ?? PRICES['claude-opus-5-5']!;
   const promptTokens = u.input_tokens + u.cache_read_tokens + u.cache_write_tokens;
   const long = promptTokens > 100_000 && p.longInput !== undefined;
   const inRate = long ? p.longInput! : p.input;

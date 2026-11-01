@@ -45,7 +45,7 @@ export async function processThread(
       select (extracted_through is null or extracted_through < last_message_at) as stale
       from email_thread where id = ${ing.threadId}`;
     if (opts.forceExtract || t?.stale) {
-      await extractThread(ctx, settings, profile, ing.threadId);
+      await extractThread(ctx, settings, profile, ing.threadId, api);
       await ensureThumbnails(ctx, api, ing.threadId);
     }
   }

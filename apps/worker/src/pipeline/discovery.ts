@@ -49,6 +49,13 @@ export async function runDiscovery(ctx: Ctx, settings: AppSettings, mailboxId: s
   if (customers.length === 0 && internal.length === 0) return;
 
   const profile = await getKnowledgeProfile(sql);
+  const sheetCompanies = (
+    await sql<{ company_name: string }[]>`
+      select distinct company_name from sheet_baseline where company_name is not null order by company_name limit 400`
+  ).map((r) => r.company_name);
+  const sheetBlock = sheetCompanies.length
+    ? `\n\n<customers_in_grc_sheet>\nCustomer names exactly as GRC wrote them in its spreadsheet. When an email sender belongs to one of these, use this spelling.\n${sheetCompanies.join('\n')}\n</customers_in_grc_sheet>`
+    : '';
   const system = discoverySystem({ internalDomains: settings.internal_domains, knowledgeProfile: profile });
   const model = settings.ai_models.discovery;
   const merged: Directory = { companies: [], team: [], glossary: '' };
@@ -60,7 +67,7 @@ export async function runDiscovery(ctx: Ctx, settings: AppSettings, mailboxId: s
       (s) => `${s.email} | ${s.name ?? '-'} | ${s.n} emails | guesses: ${(s.guesses ?? []).join('; ') || '-'} | subjects: ${(s.subjects ?? []).join(' / ')}`,
     );
     const team = i === 0 ? internal.map((s) => `${s.email} | ${s.name ?? '-'} | ${s.n} emails`).join('\n') : '(see earlier batch)';
-    const user = `<external_senders>\n${lines.join('\n') || '(none)'}\n</external_senders>\n\n<grc_senders>\n${team}\n</grc_senders>`;
+    const user = `<external_senders>\n${lines.join('\n') || '(none)'}\n</external_senders>\n\n<grc_senders>\n${team}\n</grc_senders>${sheetBlock}`;
     try {
       const r = await getProvider().call({ purpose: 'discovery', model, system, user, schema: DirectorySchema, maxTokens: 24_000 });
       await recordAiRun(sql, { purpose: 'discovery', model, usage: r.usage, ok: true });
