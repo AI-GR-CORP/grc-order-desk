@@ -109,3 +109,32 @@ export function Stats({ items }: { items: Stat[] }) {
     </div>
   );
 }
+
+const pillTone = {
+  indigo: 'bg-indigo-soft text-indigo',
+  teal: 'bg-teal-soft text-teal',
+  red: 'bg-red-soft text-red',
+  mustard: 'bg-mustard-soft text-mustard',
+  slate: 'bg-slate-soft text-muted',
+} as const;
+
+/** A small count next to a page title, e.g. "19 waiting for approval". */
+export function CountPill({ children, tone = 'slate', href, title }: { children: ReactNode; tone?: keyof typeof pillTone; href?: string; title?: string }) {
+  const cls = cx('inline-flex items-center rounded-full px-2.5 py-[3px] text-[13px] font-medium tabular-nums', pillTone[tone], href && 'hover:brightness-95');
+  return href ? (
+    <Link href={href} className={cls} title={title}>{children}</Link>
+  ) : (
+    <span className={cls} title={title}>{children}</span>
+  );
+}
+
+/** One slim line at the top of a grid page: title, a few counts, and actions on the right. */
+export function TitleBar({ title, pills, actions }: { title: ReactNode; pills?: ReactNode; actions?: ReactNode }) {
+  return (
+    <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-5 pb-3 pt-4">
+      <h1 className="mr-1 text-[20px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
+      {pills}
+      {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  );
+}

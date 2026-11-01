@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { GridCard, SheetPage, SheetTabs, shortDate } from '@/components/sheet';
-import { Empty, PageHeader, Stats } from '@/components/ui';
+import { GridBar, GridCard, SheetPage, SheetTabs, shortDate } from '@/components/sheet';
+import { CountPill, Empty, TitleBar } from '@/components/ui';
 import { fetchAll } from '@/lib/data';
 import { cx } from '@/lib/format';
 import { COMPANY_LABEL } from '@/lib/sheet';
@@ -41,20 +41,20 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
 
   return (
     <SheetPage>
-      <PageHeader title="All clients" detail="One row per client. Click a name to see all their inquiries and emails." />
-      <Stats
-        items={[
-          { label: 'Approved clients', value: counts.approved ?? 0, tone: 'teal' },
-          { label: 'Waiting for our reply', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.awaiting_reply, 0), tone: 'red', href: '/' },
-          { label: 'Development inquiries open', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_dev, 0), tone: 'indigo', href: '/orders' },
-          { label: 'Bulk orders in progress', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_bulk, 0), tone: 'teal', href: '/orders' },
-        ]}
+      <TitleBar
+        title="All clients"
+        pills={
+          <>
+            <CountPill tone="teal">{counts.approved ?? 0} approved</CountPill>
+            {all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.awaiting_reply, 0) > 0 && <CountPill tone="red" href="/">{all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.awaiting_reply, 0)} waiting for reply</CountPill>}
+          </>
+        }
       />
       <GridCard>
-        <SheetTabs
-          tabs={TABS.map((t) => ({ key: t.param, label: t.label, count: counts[t.param], href: `/clients?tab=${t.param}`, active: t.param === current.param }))}
-        />
-        <form className="flex flex-wrap items-center gap-3 px-5 py-3">
+        <GridBar
+          tabs={<SheetTabs tabs={TABS.map((t) => ({ key: t.param, label: t.label, count: counts[t.param], href: `/clients?tab=${t.param}`, active: t.param === current.param }))} />}
+        >
+          <form className="flex items-center">
           <input type="hidden" name="tab" value={current.param} />
           <input
             name="q"
@@ -62,10 +62,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             type="search"
             placeholder="Find a client"
             aria-label="Find a client"
-            className="h-9 w-72 max-w-full rounded-lg border border-line bg-surface px-3 text-[14px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15"
+            className="h-8 w-52 max-w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15"
           />
-          <span className="ml-auto text-[13px] text-muted">{rows.length} clients</span>
-        </form>
+          </form>
+        </GridBar>
         {rows.length === 0 ? (
           <div className="flex-1 border-t border-line"><Empty title={needle ? 'No client matches' : 'No clients here yet'} /></div>
         ) : (

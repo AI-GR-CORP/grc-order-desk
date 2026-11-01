@@ -6,7 +6,7 @@ import { addThreadsToClient, approveAsNewClient, ignoreThreads } from '@/app/act
 import type { ActionResult } from '@/app/actions/result';
 import Link from 'next/link';
 import { cx } from '@/lib/format';
-import { EmailLinks, GridCard, ReplyCell, shortDate, TypeChip } from './sheet';
+import { EmailLinks, GridBar, GridCard, ReplyCell, shortDate, TypeChip } from './sheet';
 import { Button, inputClass } from './ui';
 
 export interface UnmatchedGroup {
@@ -21,10 +21,7 @@ export function UnmatchedSheet({ groups, companies, canEdit, tabs, empty }: { gr
   let rowNo = 0;
   return (
     <GridCard>
-      {tabs}
-      <p className="px-5 py-3 text-[14px] text-muted">
-        These people wrote about development or bulk work, but their email address doesn’t match a client. Type the client’s name and approve, add them to a client you already have, or mark them as not client work.
-      </p>
+      <GridBar tabs={tabs} />
       {groups.length === 0 ? (
         <div className="flex-1 border-t border-line">{empty}</div>
       ) : (

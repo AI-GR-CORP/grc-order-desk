@@ -24,7 +24,7 @@ import {
 import { EditableCell } from './editable-cell';
 import { ariaSort, ColumnsMenu, SortHeader, useColumns, type SortState } from './grid-controls';
 import { RowPanel } from './row-panel';
-import { BulkStatusText, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
+import { BulkStatusText, GridBar, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
 import { Button, inputClass } from './ui';
 
 /** Tripti's checklist for one bulk order: step key -> what was written, and the latest step reached. */
@@ -139,11 +139,10 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
   return (
     <>
       <GridCard>
-        {tabs}
-        <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+        <GridBar tabs={tabs}>
           <ToggleChip on={onlyWaiting} onChange={setOnlyWaiting} tone="red">
-            Waiting for our reply
-            <span className={cx('rounded-full px-1.5 text-[12.5px] font-semibold tabular-nums', onlyWaiting ? 'bg-red text-white' : 'bg-red-soft text-red')}>{waitingCount}</span>
+            Waiting for reply
+            <span className={cx('rounded-full px-1.5 text-[12px] font-semibold tabular-nums', onlyWaiting ? 'bg-red text-white' : 'bg-red-soft text-red')}>{waitingCount}</span>
           </ToggleChip>
           <ColumnsMenu
             columns={SHEET_COLUMNS.map((c) => ({ key: c.key, label: label(c, labels), locked: c.key === 'inquiry' }))}
@@ -152,23 +151,17 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
             defaults={DEFAULT_COLUMNS[mode]}
           />
           {pickable && groups.length > 1 && (
-            <button type="button" className="h-9 rounded-lg px-2.5 text-[14px] font-medium text-indigo hover:bg-indigo-soft" onClick={() => setSelected(new Set(groups.map((g) => g.companyId).filter(Boolean) as string[]))}>
-              Select all {groups.length}
+            <button type="button" className="h-8 rounded-lg px-2 text-[13.5px] font-medium text-indigo hover:bg-indigo-soft" onClick={() => setSelected(new Set(groups.map((g) => g.companyId).filter(Boolean) as string[]))}>
+              Select all
             </button>
           )}
           {mode === 'orders' && companies && (
-            <Button size="sm" variant="secondary" className="h-9" onClick={() => setAdding((a) => !a)}>
-              <span aria-hidden className="text-[16px] leading-none">+</span> Add an inquiry
+            <Button size="sm" variant="secondary" onClick={() => setAdding((a) => !a)}>
+              <span aria-hidden className="text-[15px] leading-none">+</span> Add inquiry
             </Button>
           )}
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-[13.5px] text-muted">
-              {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
-              {showCompany && `, ${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`}
-            </span>
-            <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, brand, inquiry" />
-          </div>
-        </div>
+          <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search client, brand or inquiry" />
+        </GridBar>
 
         {adding && companies && <AddRow companies={companies} onDone={() => setAdding(false)} />}
         {note}

@@ -1,7 +1,7 @@
 import { companyKey, type ClientApproval, type ClientQueueRow, type ThreadBriefRow } from '@grc/core';
 import { domainOf, isFreemail, isInternal } from '@grc/core/mail';
 import { SheetPage, SheetTabs } from '@/components/sheet';
-import { Empty, PageHeader, Stats } from '@/components/ui';
+import { CountPill, Empty, TitleBar } from '@/components/ui';
 import { UnmatchedSheet, type UnmatchedGroup } from '@/components/unmatched-sheet';
 import { WorkSheet, type ApprovalInfo } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
@@ -64,10 +64,18 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const costPerThread = settings.ai_models.extract.includes('opus') ? 0.12 : 0.05;
   const canEdit = user.isAdmin;
 
+  const mb = mailboxes[0];
+  const stillLearning = mb && ['pending', 'ingesting', 'triaging', 'discovery'].includes(mb.backfill_stage ?? '');
   const header = (
-    <PageHeader
+    <TitleBar
       title="New clients"
-      detail="Clients the AI found in the mailbox. Approve the real customers: only then does the AI read their emails in full and fill in the sheet."
+      pills={
+        <>
+          <CountPill tone="mustard">{counts.waiting ?? 0} waiting for approval</CountPill>
+          {stillLearning && <CountPill tone="slate">Still reading the mailbox</CountPill>}
+          {!canEdit && <CountPill tone="slate">Only owners can approve</CountPill>}
+        </>
+      }
     />
   );
 
@@ -92,35 +100,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   );
   const thumbnails = await getThumbnails(rows.map((r) => r.thread_id ?? ''));
 
-  const mb = mailboxes[0];
-  const stillLearning = mb && ['pending', 'ingesting', 'triaging', 'discovery'].includes(mb.backfill_stage ?? '');
-  const waitingList = queue.filter((q) => q.approval === 'pending');
-  const waitingConversations = waitingList.reduce((n, q) => n + q.tracked_threads, 0);
-  const stats = (
-    <Stats
-      items={[
-        { label: 'Clients waiting for approval', value: counts.waiting ?? 0, tone: 'mustard', href: '/approvals' },
-        { label: 'Their conversations', value: waitingConversations, tone: 'indigo' },
-        { label: 'To read them all', value: `$${(waitingConversations * costPerThread).toFixed(2)}`, tone: 'slate' },
-        { label: 'Approved clients', value: counts.approved ?? 0, tone: 'teal', href: '/approvals?tab=approved' },
-      ]}
-    />
-  );
-  const note =
-    current.approval === 'pending' ? (
-      <p className="mx-5 mb-3 rounded-lg bg-mustard-soft px-3.5 py-2 text-[13.5px] text-ink-2">
-        {stillLearning
-          ? 'Still reading the mailbox. More clients appear here when it finishes.'
-          : canEdit
-            ? 'The brand, sample collected and status columns fill in after you approve a client and the AI reads their emails.'
-            : 'Only owners can approve clients.'}
-      </p>
-    ) : null;
-
   return (
     <SheetPage>
       {header}
-      {stats}
       <WorkSheet
         mode="approvals"
         approvalTab={current.approval}
@@ -129,7 +111,6 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         rows={rows}
         thumbnails={thumbnails}
         labels={settings.column_labels}
-        note={note}
         tabs={tabBar}
         empty={
           <Empty title={current.approval === 'pending' ? 'No clients waiting' : current.approval === 'approved' ? 'No approved clients yet' : 'No ignored clients'}>

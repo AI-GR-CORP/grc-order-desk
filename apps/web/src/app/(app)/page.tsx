@@ -1,7 +1,7 @@
 import type { NeedsReplyRow } from '@grc/core';
 import { ReplySheet } from '@/components/reply-sheet';
-import { GridCard, SheetPage, SheetTabs } from '@/components/sheet';
-import { Empty, LinkButton, PageHeader, Stats } from '@/components/ui';
+import { GridBar, GridCard, SheetPage, SheetTabs } from '@/components/sheet';
+import { CountPill, Empty, LinkButton, PageHeader, TitleBar } from '@/components/ui';
 import { getAppUser } from '@/lib/auth';
 import { getMailboxes, getSettings } from '@/lib/data';
 import { createSupabase } from '@/lib/supabase/server';
@@ -39,28 +39,26 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const list = showMaybe ? maybe : awaiting;
   return (
     <SheetPage>
-      <PageHeader
+      <TitleBar
         title="Reply needed"
-        detail={
-          awaiting.length === 0
-            ? 'No customer is waiting for a reply right now.'
-            : `${awaiting.length} ${awaiting.length === 1 ? 'customer is' : 'customers are'} waiting for GRC. Target: reply within ${settings.reply_sla_minutes} minutes in working hours.`
+        pills={
+          <>
+            <CountPill tone={awaiting.length ? 'red' : 'slate'}>{awaiting.length} waiting for reply</CountPill>
+            {awaiting.filter((r) => r.reply_due_at && new Date(r.reply_due_at).getTime() < Date.now()).length > 0 && <CountPill tone="red">{awaiting.filter((r) => r.reply_due_at && new Date(r.reply_due_at).getTime() < Date.now()).length} past {settings.reply_sla_minutes} min</CountPill>}
+            {waitingClients > 0 && <CountPill tone="mustard" href="/approvals">{waitingClients} new clients to approve</CountPill>}
+          </>
         }
       />
-      <Stats
-        items={[
-          { label: 'Waiting for our reply', value: awaiting.length, tone: 'red', href: '/' },
-          { label: 'Past the reply time', value: awaiting.filter((r) => r.reply_due_at && new Date(r.reply_due_at).getTime() < Date.now()).length, tone: 'red' },
-          { label: 'New clients to approve', value: waitingClients, tone: 'mustard', href: '/approvals' },
-          { label: 'Maybe already answered', value: maybe.length, tone: 'slate', href: '/?tab=maybe' },
-        ]}
-      />
       <GridCard>
-        <SheetTabs
-          tabs={[
-            { key: 'waiting', label: 'Waiting for our reply', count: awaiting.length, href: '/', active: !showMaybe },
-            { key: 'maybe', label: 'Maybe already answered', count: maybe.length, href: '/?tab=maybe', active: showMaybe },
-          ]}
+        <GridBar
+          tabs={
+            <SheetTabs
+              tabs={[
+                { key: 'waiting', label: 'Waiting for our reply', count: awaiting.length, href: '/', active: !showMaybe },
+                { key: 'maybe', label: 'Maybe already answered', count: maybe.length, href: '/?tab=maybe', active: showMaybe },
+              ]}
+            />
+          }
         />
         {list.length === 0 ? (
           <div className="flex-1">
@@ -69,14 +67,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </Empty>
           </div>
         ) : (
-          <>
-            {showMaybe && (
-              <p className="mx-5 my-3 rounded-lg bg-mustard-soft px-3.5 py-2 text-[13.5px]">
-                GRC emailed these customers separately after their message, so they may already be answered. Check and tick them off.
-              </p>
-            )}
-            <ReplySheet rows={list} maybe={showMaybe} />
-          </>
+          <ReplySheet rows={list} maybe={showMaybe} />
         )}
       </GridCard>
     </SheetPage>

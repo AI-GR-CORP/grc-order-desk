@@ -16,6 +16,7 @@ export function ClientHeader({
   region,
   approval,
   isAdmin,
+  extra,
 }: {
   id: string;
   name: string;
@@ -23,6 +24,7 @@ export function ClientHeader({
   region: string | null;
   approval: 'pending' | 'approved' | 'rejected';
   isAdmin: boolean;
+  extra?: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ name, city: city ?? '', region: region ?? '' });
@@ -54,12 +56,13 @@ export function ClientHeader({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.01em]">{name}</h1>
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+      <h1 className="mr-1 text-[20px] font-semibold leading-tight tracking-[-0.01em]">{name}</h1>
       {approval === 'approved' && <span className="rounded-full bg-teal-soft px-2.5 py-[3px] text-[12px] font-medium text-teal">Approved client</span>}
       {approval === 'pending' && <span className="rounded-full bg-mustard-soft px-2.5 py-[3px] text-[12px] font-medium text-mustard">Waiting for approval</span>}
       {approval === 'rejected' && <span className="rounded-full bg-slate-soft px-2.5 py-[3px] text-[12px] font-medium text-muted">Ignored</span>}
-      <span className="text-[14.5px] text-muted">{placeOf(city, region) || 'City not set'}</span>
+      <span className="text-[14px] text-muted">{placeOf(city, region) || 'City not set'}</span>
+      {extra}
       <button onClick={() => setEditing(true)} className="text-[13.5px] font-medium text-indigo hover:underline">Edit</button>
       {isAdmin && approval !== 'approved' && (
         <span className="ml-auto flex gap-2">

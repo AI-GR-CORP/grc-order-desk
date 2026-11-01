@@ -2,13 +2,13 @@ import Link from 'next/link';
 import type { BulkOrderView, BulkStageDefRow } from '@grc/core';
 import { notFound } from 'next/navigation';
 import { ClientHeader } from '@/components/client-header';
-import { GridCard, ReplyCell, SheetPage, SheetTabs, shortDate } from '@/components/sheet';
-import { Empty, Stats } from '@/components/ui';
+import { GridBar, GridCard, ReplyCell, SheetPage, SheetTabs, shortDate } from '@/components/sheet';
+import { CountPill, Empty } from '@/components/ui';
 import { WorkSheet, type BulkChecklist } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
 import { fetchAll, getMailboxes, getSettings, getThumbnails } from '@/lib/data';
 import { gmailLink } from '@/lib/format';
-import { isWaiting, type SheetRow } from '@/lib/sheet';
+import type { SheetRow } from '@/lib/sheet';
 import { createSupabase } from '@/lib/supabase/server';
 
 const OTHER: Record<string, string> = { payment: 'Payment', other: 'Other', unclassified: 'Not sorted', ignored: 'Not client work' };
@@ -59,7 +59,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
 
   return (
     <SheetPage>
-      <header className="space-y-1.5 px-6 pb-5 pt-7">
+      <header className="px-5 pb-3 pt-4">
         <ClientHeader
           id={id}
           name={company.name as string}
@@ -67,25 +67,20 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           region={company.region as string | null}
           approval={company.approval as 'pending' | 'approved' | 'rejected'}
           isAdmin={user.isAdmin}
+          extra={
+            <CountPill
+              tone="slate"
+              title={[...people.map((p) => (p.name ? `${p.name} (${p.email})` : p.email)), ...((company.domains as string[]).length ? [`Website: ${(company.domains as string[]).join(', ')}`] : [])].join('\n') || 'No contacts yet'}
+            >
+              {people.length} {people.length === 1 ? 'person' : 'people'}
+            </CountPill>
+          }
         />
-        <p className="text-[14px] text-ink-2">
-          <span className="text-muted">People: </span>
-          {people.length === 0 ? 'none yet' : people.map((p) => (p.name ? `${p.name} (${p.email})` : p.email)).join(', ')}
-          {(company.domains as string[]).length > 0 && <span className="text-muted">. Website: {(company.domains as string[]).join(', ')}</span>}
-        </p>
       </header>
-      <Stats
-        items={[
-          { label: 'Development rows', value: rows.filter((r) => r.row_kind !== 'bulk').length, tone: 'indigo' },
-          { label: 'Bulk orders', value: rows.filter((r) => r.row_kind === 'bulk').length, tone: 'teal' },
-          { label: 'Waiting for our reply', value: rows.filter(isWaiting).length, tone: 'red' },
-          { label: 'Last email', value: shortDate(rows.map((r) => r.last_at ?? '').sort().pop()) || 'None', tone: 'slate' },
-        ]}
-      />
 
       {showOther ? (
         <GridCard>
-          {tabs}
+          <GridBar tabs={tabs} />
           {otherRows.length === 0 ? (
             <div className="flex-1"><Empty title="No other emails" /></div>
           ) : (

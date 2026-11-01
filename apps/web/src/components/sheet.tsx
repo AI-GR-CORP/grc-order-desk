@@ -105,7 +105,7 @@ export interface TabItem {
 /** Tabs across the top of a grid. */
 export function SheetTabs({ tabs, right }: { tabs: TabItem[]; right?: ReactNode }) {
   return (
-    <div className="sheet-tabs flex items-stretch overflow-x-auto border-b border-line px-5">
+    <div className="sheet-tabs flex items-stretch overflow-x-auto">
       {tabs.map((t) =>
         t.href ? (
           <Link key={t.key} href={t.href} aria-current={t.active ? 'page' : undefined}>
@@ -124,6 +124,16 @@ export function SheetTabs({ tabs, right }: { tabs: TabItem[]; right?: ReactNode 
   );
 }
 
+/** The single line above a grid: tabs on the left, filters and search on the right. */
+export function GridBar({ tabs, children }: { tabs?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4">
+      {tabs}
+      {children && <div className="ml-auto flex flex-wrap items-center gap-2 py-2">{children}</div>}
+    </div>
+  );
+}
+
 /** Page body for grid screens: header, summary cards, then the grid filling the rest of the window. */
 export function SheetPage({ children }: { children: ReactNode }) {
   return <div className="flex flex-col lg:h-full">{children}</div>;
@@ -131,7 +141,7 @@ export function SheetPage({ children }: { children: ReactNode }) {
 
 /** The white rounded card that holds tabs, filters and the grid. */
 export function GridCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx('grid-card mx-6 mb-6 flex-1', className)}>{children}</section>;
+  return <section className={cx('grid-card mx-5 mb-5 flex-1', className)}>{children}</section>;
 }
 
 /** A search box styled like the rest of the grid toolbar. */
@@ -139,14 +149,14 @@ export function SearchBox(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="relative block">
       <span className="sr-only">{props.placeholder ?? 'Search'}</span>
-      <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
       </svg>
       <input
         type="search"
         {...props}
-        className={cx('h-9 w-72 max-w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-[14px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
+        className={cx('h-8 w-52 max-w-full rounded-lg border border-line bg-surface pl-8 pr-3 text-[13.5px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
       />
     </label>
   );
@@ -160,7 +170,7 @@ export function ToggleChip({ on, onChange, children, tone = 'indigo' }: { on: bo
       aria-pressed={on}
       onClick={() => onChange(!on)}
       className={cx(
-        'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[14px] font-medium transition-colors duration-200',
+        'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13.5px] font-medium transition-colors duration-200',
         on ? (tone === 'red' ? 'border-red/30 bg-red-soft text-red' : 'border-indigo/30 bg-indigo-soft text-indigo') : 'border-line bg-surface text-ink-2 hover:bg-slate-soft',
       )}
     >

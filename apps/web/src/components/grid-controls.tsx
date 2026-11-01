@@ -102,7 +102,7 @@ export function ColumnsMenu({
         aria-haspopup="true"
         onClick={() => setOpen((o) => !o)}
         className={cx(
-          'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[14px] font-medium transition-colors duration-200',
+          'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13.5px] font-medium transition-colors duration-200',
           open ? 'border-indigo/30 bg-indigo-soft text-indigo' : 'border-line bg-surface text-ink-2 hover:bg-slate-soft',
         )}
       >
@@ -113,7 +113,7 @@ export function ColumnsMenu({
         Columns
       </button>
       {open && (
-        <div className="absolute left-0 top-11 z-30 w-64 animate-fade-in rounded-xl border border-line bg-surface p-2 shadow-[0_12px_32px_rgba(15,23,42,0.14)]" role="group" aria-label="Show or hide columns">
+        <div className="absolute right-0 top-10 z-30 w-64 animate-fade-in rounded-xl border border-line bg-surface p-2 shadow-[0_12px_32px_rgba(15,23,42,0.14)]" role="group" aria-label="Show or hide columns">
           <p className="px-2 pb-1.5 pt-1 text-[12.5px] text-muted">Show these columns</p>
           <div className="max-h-80 overflow-y-auto">
             {columns.map((c) => (

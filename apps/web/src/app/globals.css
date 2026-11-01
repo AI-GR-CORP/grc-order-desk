@@ -214,12 +214,13 @@ button, [role="button"], a, select, summary { cursor: pointer; }
 /* tabs across the top of the grid */
 .sheet-tabs a,
 .sheet-tabs button {
+  margin-bottom: -1px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 48px;
+  gap: 7px;
+  height: 46px;
   padding: 0 2px;
-  margin-right: 20px;
+  margin-right: 16px;
   border-bottom: 2px solid transparent;
   color: var(--color-muted);
   font-size: 14px;
