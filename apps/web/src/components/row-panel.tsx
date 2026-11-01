@@ -41,7 +41,7 @@ export function RowPanel({
 
   const editable = row.source === 'item' || row.source === 'bulk';
   const field = (c: SheetColumn) => (row.source === 'bulk' ? c.bulkField : c.devField);
-  const main = SHEET_COLUMNS.filter((c) => !c.extra && field(c) && c.key !== 'inquiry');
+  const main = SHEET_COLUMNS.filter((c) => !c.extra && field(c));
   const more = SHEET_COLUMNS.filter((c) => c.extra && field(c));
   const save = (c: SheetColumn) => (v: string | null) =>
     row.source === 'bulk' ? updateBulkField(row.item_id!, c.bulkField!, v) : updateDevField(row.item_id!, c.devField!, v);
@@ -142,7 +142,6 @@ export function RowPanel({
 
           {editable && (
             <section className="space-y-4">
-              <PanelField label={label(SHEET_COLUMNS[0]!, labels)} value={cellValue(row, 'inquiry')} kind="longtext" onSave={save(SHEET_COLUMNS[0]!)} locked={row.locked_fields.includes(field(SHEET_COLUMNS[0]!)!)} />
               {main.map((c) => (
                 <PanelField key={c.key} label={label(c, labels)} value={cellValue(row, c.key)} kind={c.kind} options={c.options} onSave={save(c)} locked={row.locked_fields.includes(field(c)!)} />
               ))}

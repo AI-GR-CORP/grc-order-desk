@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BULK_STATUSES, type BulkOrderView, type BulkStageDefRow } from '@grc/core';
 import { setBulkStage, updateBulkField } from '@/app/actions/items';
 import { cx } from '@/lib/format';
+import { COMPANY_LABEL } from '@/lib/sheet';
 import { EditableCell } from './editable-cell';
 import { BulkStatusText, GridCard, SearchBox, SheetTabs, ToggleChip } from './sheet';
 import { Empty } from './ui';
@@ -38,6 +39,7 @@ export function BulkTable({ rows, stages }: { rows: BulkOrderView[]; stages: Bul
 
   const field = (id: string, f: string) => (v: string | null) => updateBulkField(id, f, v);
   const stageSave = (id: string, key: string) => (v: string | null) => setBulkStage(id, key, v);
+  let rowNo = 0;
 
   return (
     <GridCard>
@@ -65,9 +67,13 @@ export function BulkTable({ rows, stages }: { rows: BulkOrderView[]; stages: Bul
           <table className="sheet">
             <thead>
               <tr>
-                <th className="primary" style={{ width: 280, minWidth: 280 }}>Order</th>
-                <th style={{ minWidth: 140 }}>Status</th>
+                <th className="rn" aria-label="Row" />
+                <th className="co">{COMPANY_LABEL}</th>
+                <th style={{ minWidth: 130 }}>Brand</th>
+                <th style={{ minWidth: 140 }}>Product code</th>
+                <th style={{ minWidth: 200 }}>Description</th>
                 <th style={{ minWidth: 110 }}>Qty (mtrs)</th>
+                <th style={{ minWidth: 140 }}>Status</th>
                 {cols.map((s) => (
                   <th key={s.key} style={{ minWidth: 124 }}>{s.label}</th>
                 ))}
@@ -77,35 +83,30 @@ export function BulkTable({ rows, stages }: { rows: BulkOrderView[]; stages: Bul
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => (
-                <Fragment key={g.id ?? 'none'}>
-                  <tr className="group">
-                    <td colSpan={cols.length + 6}>
-                      <div className="group-inner">
-                        {g.id ? (
-                          <Link href={`/clients/${g.id}`} className="text-[15px] font-semibold text-ink hover:text-indigo">{g.name}</Link>
-                        ) : (
-                          <span className="text-[15px] font-semibold">{g.name}</span>
-                        )}
-                        <span className="rounded-full bg-slate-soft px-2 py-[1px] text-[12.5px] font-medium text-muted">
-                          {g.items.length} {g.items.length === 1 ? 'order' : 'orders'}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  {g.items.map((r) => (
-                    <tr key={r.id} className="row">
-                      <td className="primary" style={{ maxWidth: 280 }}>
-                        <div className="space-y-0.5">
-                          <EditableCell value={r.brand} onSave={field(r.id, 'brand')} locked={r.locked_fields.includes('brand')} placeholder="Add brand" display={r.brand ? <span className="font-medium">{r.brand}</span> : undefined} />
-                          <EditableCell value={r.product_code} onSave={field(r.id, 'product_code')} locked={r.locked_fields.includes('product_code')} placeholder="Add product code" display={r.product_code ? <span className="text-[13px] text-muted">{r.product_code}</span> : undefined} />
-                          {(r.po_number || r.pi_number) && (
-                            <div className="text-[13px] text-muted">{[prefixed('PI', r.pi_number), prefixed('PO', r.po_number)].filter(Boolean).join(', ')}</div>
+              {groups.map((g) =>
+                g.items.map((r, i) => {
+                  rowNo++;
+                  return (
+                    <tr key={r.id} className={cx('row', rowNo % 2 === 0 && 'alt', i === g.items.length - 1 && 'group-last')}>
+                      <td className="rn">{rowNo}</td>
+                      {i === 0 && (
+                        <td className={cx('co', !g.id && 'unknown')} rowSpan={g.items.length}>
+                          {g.id ? (
+                            <Link href={`/clients/${g.id}`} className="text-[14.5px] font-semibold text-ink hover:text-indigo">{g.name}</Link>
+                          ) : (
+                            <span className="text-[14.5px] font-semibold">{g.name}</span>
                           )}
-                        </div>
+                          <div className="mt-0.5 text-[12.5px] text-muted">{g.items.length} {g.items.length === 1 ? 'order' : 'orders'}</div>
+                        </td>
+                      )}
+                      <td><EditableCell value={r.brand} onSave={field(r.id, 'brand')} locked={r.locked_fields.includes('brand')} /></td>
+                      <td>
+                        <EditableCell value={r.product_code} onSave={field(r.id, 'product_code')} locked={r.locked_fields.includes('product_code')} />
+                        {(r.po_number || r.pi_number) && <div className="text-[13px] text-muted">{[prefixed('PI', r.pi_number), prefixed('PO', r.po_number)].filter(Boolean).join(', ')}</div>}
                       </td>
-                      <td><EditableCell value={r.status} kind="select" options={STATUS_OPTIONS} onSave={field(r.id, 'status')} display={<BulkStatusText status={r.status} />} /></td>
+                      <td><EditableCell kind="longtext" value={r.description} onSave={field(r.id, 'description')} locked={r.locked_fields.includes('description')} /></td>
                       <td><EditableCell value={r.qty_mtrs == null ? null : String(r.qty_mtrs)} onSave={field(r.id, 'qty_mtrs')} locked={r.locked_fields.includes('qty_mtrs')} /></td>
+                      <td><EditableCell value={r.status} kind="select" options={STATUS_OPTIONS} onSave={field(r.id, 'status')} display={<BulkStatusText status={r.status} />} /></td>
                       {cols.map((s) => {
                         const v = r.stages[s.key];
                         const current = r.current_stage === s.key;
@@ -124,15 +125,15 @@ export function BulkTable({ rows, stages }: { rows: BulkOrderView[]; stages: Bul
                       <td><EditableCell kind="longtext" value={r.owner_remark} onSave={field(r.id, 'owner_remark')} /></td>
                       <td className="act">
                         {r.primary_thread_id ? (
-                          <Link href={`/threads/${r.primary_thread_id}`} className="inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-[13px] font-medium text-ink-2 hover:border-indigo/40 hover:text-indigo">Emails</Link>
+                          <Link href={`/threads/${r.primary_thread_id}`} className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 hover:border-indigo/40 hover:text-indigo">Emails</Link>
                         ) : (
                           <span className="text-[12.5px] text-muted">{r.source === 'sheet_import' ? 'From old sheet' : ''}</span>
                         )}
                       </td>
                     </tr>
-                  ))}
-                </Fragment>
-              ))}
+                  );
+                }),
+              )}
             </tbody>
           </table>
         </div>

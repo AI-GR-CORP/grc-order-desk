@@ -59,22 +59,23 @@ export interface SheetColumn {
 }
 
 /**
- * GRC's columns (names from the "NEW INQUIRY" tab) plus Type / Reply / Last email.
+ * GRC's columns in the order of the "NEW INQUIRY" tab (Company name and City are drawn
+ * separately, merged per client), then the added Type / Reply / Last email, then extra details.
  * `key` matches the column-label keys in Settings, so renamed columns keep working.
- * Inquiry is the main column: it also shows brand and merchant underneath and opens the details panel.
  */
 export const SHEET_COLUMNS: SheetColumn[] = [
-  { key: 'inquiry', label: 'Inquiry', width: 340, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
-  { key: 'type', label: 'Type', width: 124 },
-  { key: 'reply', label: 'Reply', width: 152, sortable: true },
   { key: 'merchant_name', label: 'Merchant', width: 140, devField: 'merchant_name', kind: 'text', sortable: true },
-  { key: 'brand', label: 'Brand', width: 120, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
+  { key: 'brand', label: 'Brand', width: 124, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
+  { key: 'inquiry', label: 'Inquiry', width: 300, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
   { key: 'sample_collected', label: 'Sample collected', width: 136, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
-  { key: 'picture', label: 'Picture', width: 92 },
-  { key: 'team_status', label: 'Status of Poornima', width: 196, devField: 'team_status', kind: 'longtext' },
-  { key: 'brand_status', label: 'Status of brand', width: 168, devField: 'brand_status', kind: 'longtext' },
-  { key: 'owner_remark', label: 'Yash remark', width: 188, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },
-  { key: 'last_email', label: 'Last email', width: 112, sortable: true },
+  { key: 'picture', label: 'Picture', width: 96 },
+  { key: 'team_status', label: 'Status of Poornima', width: 190, devField: 'team_status', kind: 'longtext' },
+  { key: 'brand_status', label: 'Status of brand', width: 164, devField: 'brand_status', kind: 'longtext' },
+  { key: 'owner_remark', label: 'Yash remark', width: 184, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },
+  // Added columns
+  { key: 'type', label: 'Type', width: 128 },
+  { key: 'reply', label: 'Reply', width: 156, sortable: true },
+  { key: 'last_email', label: 'Last email', width: 116, sortable: true },
   // More details (details panel; can be added as columns)
   { key: 'enquiry_date', label: 'Enquiry date', width: 116, devField: 'enquiry_date', kind: 'date', extra: true },
   { key: 'product_code', label: 'Product code', width: 130, devField: 'product_code', bulkField: 'product_code', kind: 'text', extra: true },
@@ -88,12 +89,15 @@ export const SHEET_COLUMNS: SheetColumn[] = [
 
 export type GridMode = 'development' | 'client' | 'approvals';
 
-/** What each screen shows before anyone changes the Columns menu. */
+/** Every column from GRC's sheet plus the added ones; the Columns menu can hide or add more. */
+const ALL_MAIN = SHEET_COLUMNS.filter((c) => !c.extra).map((c) => c.key);
 export const DEFAULT_COLUMNS: Record<GridMode, string[]> = {
-  development: ['inquiry', 'reply', 'sample_collected', 'picture', 'team_status', 'brand_status', 'owner_remark', 'last_email'],
-  client: ['inquiry', 'type', 'reply', 'sample_collected', 'picture', 'team_status', 'owner_remark', 'last_email'],
-  approvals: ['inquiry', 'type', 'reply', 'picture', 'last_email'],
+  development: ALL_MAIN,
+  client: ALL_MAIN,
+  approvals: ALL_MAIN,
 };
+
+export const INQUIRY = SHEET_COLUMNS.find((c) => c.key === 'inquiry')!;
 
 export const COMPANY_LABEL = 'Company name';
 export const CITY_LABEL = 'City';

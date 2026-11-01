@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Fragment, useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { setClientApproval } from '@/app/actions/approvals';
 import { addDevItem, updateBulkField, updateDevField } from '@/app/actions/items';
@@ -8,11 +8,12 @@ import type { ActionResult } from '@/app/actions/result';
 import { cx, gmailLink } from '@/lib/format';
 import {
   cellValue,
+  CITY_LABEL,
+  COMPANY_LABEL,
   DEFAULT_COLUMNS,
   groupByCompany,
   isWaiting,
   label,
-  placeOf,
   replyRank,
   SHEET_COLUMNS,
   type GridMode,
@@ -70,17 +71,15 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, start] = useTransition();
-  const [visible, setVisible] = useColumns(`grc.columns.${mode}.v1`, DEFAULT_COLUMNS[mode]);
+  const [visible, setVisible] = useColumns(`grc.columns.${mode}.v2`, DEFAULT_COLUMNS[mode]);
 
-  const showGroups = mode !== 'client';
-  const cols = SHEET_COLUMNS.filter((c) => c.key !== 'inquiry' && visible.includes(c.key));
-  const inquiryCol = SHEET_COLUMNS[0]!;
+  const showCompany = mode !== 'client';
+  const cols = SHEET_COLUMNS.filter((c) => c.key === 'inquiry' || visible.includes(c.key));
   const waitingCount = rows.filter(isWaiting).length;
 
   const filtered = useMemo(() => {
@@ -114,10 +113,9 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
     (acc, id) => ({ n: acc.n + (approvals?.[id]?.conversations ?? 0), cost: acc.cost + (approvals?.[id]?.cost ?? 0) }),
     { n: 0, cost: 0 },
   );
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
   const openRow = openId ? rows.find((r) => r.row_id === openId) ?? null : null;
   const closePanel = useCallback(() => setOpenId(null), []);
-  const colSpan = cols.length + 2;
+  let rowNo = 0;
 
   return (
     <>
@@ -130,15 +128,10 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
           </ToggleChip>
           <ColumnsMenu
             columns={SHEET_COLUMNS.map((c) => ({ key: c.key, label: label(c, labels), locked: c.key === 'inquiry' }))}
-            visible={['inquiry', ...cols.map((c) => c.key)]}
+            visible={cols.map((c) => c.key)}
             onChange={setVisible}
             defaults={DEFAULT_COLUMNS[mode]}
           />
-          {showGroups && groups.length > 1 && (
-            <Button size="sm" variant="ghost" className="h-9" onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)))}>
-              {allCollapsed ? 'Show all rows' : 'Show clients only'}
-            </Button>
-          )}
           {pickable && groups.length > 1 && (
             <button type="button" className="h-9 rounded-lg px-2.5 text-[14px] font-medium text-indigo hover:bg-indigo-soft" onClick={() => setSelected(new Set(groups.map((g) => g.companyId).filter(Boolean) as string[]))}>
               Select all {groups.length}
@@ -152,7 +145,7 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
           <div className="ml-auto flex items-center gap-3">
             <span className="text-[13.5px] text-muted">
               {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
-              {showGroups && `, ${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`}
+              {showCompany && `, ${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`}
             </span>
             <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, brand, inquiry" />
           </div>
@@ -179,9 +172,9 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
             <table className="sheet">
               <thead>
                 <tr>
-                  <th className="primary" style={{ width: inquiryCol.width, minWidth: inquiryCol.width }} aria-sort={ariaSort(sort, 'inquiry')}>
-                    <SortHeader label={label(inquiryCol, labels)} colKey="inquiry" sort={sort} onSort={setSort} />
-                  </th>
+                  <th className="rn" aria-label="Row" />
+                  {showCompany && <th className="co">{COMPANY_LABEL}</th>}
+                  {showCompany && <th style={{ width: 112, minWidth: 112 }}>{CITY_LABEL}</th>}
                   {cols.map((c) => (
                     <th
                       key={c.key}
@@ -198,89 +191,92 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
                 </tr>
               </thead>
               <tbody>
-                {shown.map((g) => (
-                  <Fragment key={g.key}>
-                    {showGroups && (
-                      <tr className="group">
-                        <td colSpan={colSpan}>
-                          <GroupHeader
-                            group={g}
-                            mode={mode}
-                            tab={approvalTab}
-                            info={g.companyId ? approvals?.[g.companyId] : undefined}
-                            canApprove={Boolean(canApprove)}
-                            collapsed={collapsed.has(g.key)}
-                            onToggle={() =>
-                              setCollapsed((s) => {
-                                const n = new Set(s);
-                                if (n.has(g.key)) n.delete(g.key);
-                                else n.add(g.key);
-                                return n;
-                              })
-                            }
-                            selected={g.companyId ? selected.has(g.companyId) : false}
-                            onSelect={
-                              pickable && g.companyId
-                                ? (on) =>
-                                    setSelected((s) => {
-                                      const n = new Set(s);
-                                      if (on) n.add(g.companyId!);
-                                      else n.delete(g.companyId!);
-                                      return n;
-                                    })
-                                : undefined
-                            }
-                            busy={busy}
-                            act={act}
-                          />
+                {shown.map((g) =>
+                  g.rows.map((r, i) => {
+                    rowNo++;
+                    return (
+                      <tr
+                        key={r.row_id}
+                        className={cx('row', rowNo % 2 === 0 && 'alt', isWaiting(r) && 'waiting', openId === r.row_id && 'selected', i === g.rows.length - 1 && 'group-last')}
+                      >
+                        <td className="rn" title={isWaiting(r) ? 'Customer is waiting for GRC’s reply' : undefined}>{rowNo}</td>
+                        {showCompany && i === 0 && (
+                          <td className={cx('co', !g.companyId && 'unknown')} rowSpan={g.rows.length}>
+                            <CompanyCell
+                              group={g}
+                              mode={mode}
+                              tab={approvalTab}
+                              info={g.companyId ? approvals?.[g.companyId] : undefined}
+                              canApprove={Boolean(canApprove)}
+                              selected={g.companyId ? selected.has(g.companyId) : false}
+                              onSelect={
+                                pickable && g.companyId
+                                  ? (on) =>
+                                      setSelected((s) => {
+                                        const n = new Set(s);
+                                        if (on) n.add(g.companyId!);
+                                        else n.delete(g.companyId!);
+                                        return n;
+                                      })
+                                  : undefined
+                              }
+                              busy={busy}
+                              act={act}
+                            />
+                          </td>
+                        )}
+                        {showCompany && i === 0 && (
+                          <td className="city" rowSpan={g.rows.length}>
+                            {g.city ?? ''}
+                          </td>
+                        )}
+                        {cols.map((c) => (
+                          <td
+                            key={c.key}
+                            style={{ maxWidth: c.width + 40 }}
+                            className={cx(['sample_collected', 'picture'].includes(c.key) && 'center', c.key === 'picture' && 'pic')}
+                          >
+                            {c.key === 'inquiry' ? (
+                              <InquiryCell r={r} onOpen={() => setOpenId(r.row_id)} />
+                            ) : (
+                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} />
+                            )}
+                          </td>
+                        ))}
+                        <td className="act">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setOpenId(r.row_id)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 transition-colors duration-200 hover:border-indigo/40 hover:text-indigo"
+                            >
+                              <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <rect x="3" y="4" width="18" height="16" rx="2" />
+                                <path d="M15 4v16" />
+                              </svg>
+                              Open
+                            </button>
+                            {r.gmail_thread_id && (
+                              <a
+                                href={gmailLink(r.mailbox_email, r.gmail_thread_id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label="Open in Gmail"
+                                title="Open in Gmail to reply"
+                                className="inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-slate-soft hover:text-ink"
+                              >
+                                <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                                  <path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
+                                </svg>
+                              </a>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    )}
-                    {!collapsed.has(g.key) &&
-                      g.rows.map((r) => (
-                        <tr key={r.row_id} className={cx('row', isWaiting(r) && 'waiting', openId === r.row_id && 'selected')}>
-                          <td className="primary" style={{ width: inquiryCol.width, minWidth: inquiryCol.width, maxWidth: inquiryCol.width }}>
-                            <PrimaryCell r={r} onOpen={() => setOpenId(r.row_id)} />
-                          </td>
-                          {cols.map((c) => (
-                            <td key={c.key} style={{ maxWidth: c.width + 40 }} className={cx(['sample_collected', 'picture'].includes(c.key) && 'center', c.key === 'picture' && 'pic')}>
-                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} />
-                            </td>
-                          ))}
-                          <td className="act">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setOpenId(r.row_id)}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 transition-colors duration-200 hover:border-indigo/40 hover:text-indigo"
-                              >
-                                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                  <rect x="3" y="4" width="18" height="16" rx="2" />
-                                  <path d="M15 4v16" />
-                                </svg>
-                                Open
-                              </button>
-                              {r.gmail_thread_id && (
-                                <a
-                                  href={gmailLink(r.mailbox_email, r.gmail_thread_id)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  aria-label="Open in Gmail"
-                                  title="Open in Gmail to reply"
-                                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-slate-soft hover:text-ink"
-                                >
-                                  <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                                    <path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
-                                  </svg>
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                  </Fragment>
-                ))}
+                    );
+                  }),
+                )}
               </tbody>
             </table>
             {groups.length > limit && (
@@ -333,14 +329,12 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
   );
 }
 
-function GroupHeader({
+function CompanyCell({
   group,
   mode,
   tab,
   info,
   canApprove,
-  collapsed,
-  onToggle,
   selected,
   onSelect,
   busy,
@@ -351,48 +345,43 @@ function GroupHeader({
   tab: Props['approvalTab'];
   info?: ApprovalInfo;
   canApprove: boolean;
-  collapsed: boolean;
-  onToggle: () => void;
   selected: boolean;
   onSelect?: (on: boolean) => void;
   busy: boolean;
   act: (fn: () => Promise<ActionResult<unknown>>, ok: string, after?: () => void) => void;
 }) {
   const id = group.companyId;
-  const place = placeOf(group.city, group.region);
+  const n = group.rows.length;
+  const name = id ? (
+    <Link href={`/clients/${id}`} className="text-[14.5px] font-semibold leading-snug text-ink hover:text-indigo">
+      {group.name}
+    </Link>
+  ) : (
+    <span className="text-[14.5px] font-semibold leading-snug text-ink">{group.name}</span>
+  );
   return (
-    <div className="group-inner">
-      {onSelect && (
-        <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} className="size-[18px] accent-[#1e40af]" aria-label={`Select ${group.name}`} />
-      )}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? `Show ${group.name}’s rows` : `Hide ${group.name}’s rows`}
-        className="-ml-1 inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-slate-soft hover:text-ink"
-      >
-        <svg viewBox="0 0 24 24" className={cx('size-4 transition-transform duration-200', collapsed && '-rotate-90')} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {id ? (
-        <Link href={`/clients/${id}`} className="text-[15px] font-semibold text-ink hover:text-indigo">
-          {group.name}
-        </Link>
-      ) : (
-        <span className="text-[15px] font-semibold text-ink">{group.name}</span>
-      )}
-      {place && <span className="text-[13.5px] text-muted">{place}</span>}
-      <span className="rounded-full bg-slate-soft px-2 py-[1px] text-[12.5px] font-medium text-muted">
-        {group.rows.length} {mode === 'approvals' ? (group.rows.length === 1 ? 'conversation' : 'conversations') : group.rows.length === 1 ? 'row' : 'rows'}
-      </span>
+    <div className="flex flex-col items-start gap-2">
+      <div className="flex items-start gap-2.5">
+        {onSelect && (
+          <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} className="mt-0.5 size-[18px] shrink-0 accent-[#1e40af]" aria-label={`Select ${group.name}`} />
+        )}
+        <div>
+          {name}
+          <div className="mt-0.5 text-[12.5px] text-muted">
+            {n} {mode === 'approvals' ? (n === 1 ? 'conversation' : 'conversations') : n === 1 ? 'row' : 'rows'}
+            {group.region && group.region !== group.city ? `, ${group.region}` : ''}
+          </div>
+        </div>
+      </div>
       {group.waiting > 0 && (
-        <span className="rounded-full bg-red-soft px-2 py-[1px] text-[12.5px] font-medium text-red">{group.waiting} waiting for reply</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-soft px-2 py-[2px] text-[12.5px] font-medium text-red">
+          <span className="size-1.5 rounded-full bg-red" aria-hidden />
+          {group.waiting} waiting for reply
+        </span>
       )}
       {mode === 'approvals' && id && canApprove && tab === 'pending' && (
         <>
-          {info && <span className="text-[13px] text-muted">about ${info.cost.toFixed(2)} to read</span>}
+          {info && <span className="text-[12.5px] text-muted">About ${info.cost.toFixed(2)} for the AI to read</span>}
           <span className="flex gap-1.5">
             <Button size="xs" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([id], 'approved'), `${group.name} approved. Reading their emails now.`)}>
               Approve
@@ -404,7 +393,7 @@ function GroupHeader({
         </>
       )}
       {mode === 'approvals' && id && canApprove && tab === 'approved' && (
-        <Button size="xs" variant="ghost" disabled={busy} onClick={() => act(() => setClientApproval([id], 'pending'), 'Moved back to waiting')}>
+        <Button size="xs" variant="ghost" className="-ml-2" disabled={busy} onClick={() => act(() => setClientApproval([id], 'pending'), 'Moved back to waiting')}>
           Move back to waiting
         </Button>
       )}
@@ -417,22 +406,18 @@ function GroupHeader({
   );
 }
 
-/** The Inquiry column: what it's about, who it's for, and a click opens the details panel. */
-function PrimaryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
-  const meta =
-    r.source === 'thread'
-      ? r.merchant
-        ? `From ${r.merchant}`
-        : null
-      : r.source === 'bulk'
-        ? [r.brand, r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')
-        : [r.brand, r.merchant].filter(Boolean).join(', ');
+/** The Inquiry column: what it's about; a click opens the details panel. */
+function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} className="group/p block w-full text-left">
-      <span className="line-clamp-2 font-medium text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2">
+    <button type="button" onClick={onOpen} className="group/p block w-full text-left" title="Open the details">
+      <span className={cx('line-clamp-2 text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2', r.source === 'thread' && 'font-medium')}>
         {titleOf(r)}
       </span>
-      {meta && <span className="mt-0.5 block truncate text-[13px] text-muted">{meta}</span>}
+      {r.source === 'bulk' && (r.po_number || r.qty_mtrs) && (
+        <span className="mt-0.5 block text-[13px] text-muted">
+          {[r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')}
+        </span>
+      )}
       {r.source === 'thread' && r.summary && <span className="mt-1 line-clamp-2 block text-[13px] leading-snug text-muted">{r.summary}</span>}
       {r.source === 'thread' && r.company_approval === 'approved' && !r.is_read && <span className="mt-1 block text-[12.5px] font-medium text-indigo">AI is reading this now</span>}
     </button>

@@ -73,7 +73,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             <table className="sheet">
               <thead>
                 <tr>
-                  <th className="primary" style={{ width: 280, minWidth: 280 }}>{COMPANY_LABEL}</th>
+                  <th className="rn" aria-label="Row" />
+                  <th className="co">{COMPANY_LABEL}</th>
                   <th style={{ minWidth: 130 }}>City</th>
                   <th style={{ minWidth: 120 }}>Region</th>
                   <th className="center" style={{ minWidth: 130 }}>Reply needed</th>
@@ -85,9 +86,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className={cx('row', r.awaiting_reply > 0 && 'waiting')}>
-                    <td className="primary">
+                {rows.map((r, i) => (
+                  <tr key={r.id} className={cx('row', i % 2 === 1 && 'alt', r.awaiting_reply > 0 && 'waiting')}>
+                    <td className="rn">{i + 1}</td>
+                    <td className="co !align-middle">
                       <Link href={`/clients/${r.id}`} className="font-semibold text-ink hover:text-indigo">{r.name}</Link>
                       <div className="text-[13px] text-muted">{r.contact_count} {r.contact_count === 1 ? 'person' : 'people'}</div>
                     </td>

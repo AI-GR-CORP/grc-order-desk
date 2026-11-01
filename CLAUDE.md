@@ -37,13 +37,13 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - **Database:** add a NEW file `supabase/migrations/YYYYMMDDHHMMSS_name.sql`; never edit an applied migration. The project has "auto-expose new tables" OFF and automatic RLS ON, so every new table/view/function needs explicit RLS policies and grants to `authenticated` (copy the patterns in `20261101000002_security_views.sql` / `…003_client_approval.sql`). Show the user `pnpm ops migrate` output and get a yes before `--apply`.
 - **Settings that live in the database, not code:** AI models (`app_setting.ai_models`), reply time, business hours, owners (`owner_emails`). Change them with SQL via a migration or ask the user to use the dashboard.
 
-## Screens: modern CRM-style grid (designed with the ui-ux-pro-max skill)
-- Page = title and one-line description, a row of summary cards (`Stats`), then a white grid card (`GridCard`) with tabs on top, a toolbar (Waiting for our reply filter, Columns menu, search) and the grid.
-- Grid pattern (`components/work-sheet.tsx`): one **header row per client** (name, city, counts, collapse arrow; Approve/Ignore on New clients) with that client's rows underneath. The **Inquiry** column is frozen on the left and shows brand and merchant underneath; clicking it, or **Open** (pinned on the right with the Gmail icon), opens the **details panel** (`row-panel.tsx`) where every column is a labelled field.
-- Progressive disclosure: each page shows a short default set of columns (`DEFAULT_COLUMNS` in `lib/sheet.ts`); the rest are under **Columns** (remembered per computer) and in the panel. Sortable headers set `aria-sort`.
-- Colours (CRM palette): slate neutrals, blue #1e40af for actions and development, teal for bulk, green for replied/done, amber for waiting, red for late. Never colour alone: every status is a labelled pill. IBM Plex Sans; text at least 12px; `app/(app)/loading.tsx` is the loading skeleton.
-- Columns keep GRC's names from the "NEW INQUIRY" tab (Merchant, Brand, Inquiry, Sample collected, Picture, Status of Poornima, Status of brand, Yash remark) plus Type, Reply, Last email. Rows come from the `v_sheet_rows` view.
-- The owner is not technical: plain words, one clear action per button. Screenshot new screens at 1440 px wide before shipping.
+## Screens: Google-Sheets layout, modern styling (keep it this way)
+- Page = title and one-line description, summary cards (`Stats`), then a white grid card (`GridCard`) with tabs on top, a toolbar (Waiting for our reply filter, Columns menu, search) and the grid.
+- Grid looks like GRC's Google Sheet: row numbers on the left (red when a customer is waiting), **Company name merged down that client's rows** in soft yellow (`--color-company`), **City merged** next to it, light gridlines (`--color-grid`), a soft blue header row (`--color-head`), **alternating white / light-blue rows** (`tr.alt`, `--color-band`), and a firmer line between clients (`tr.group-last`).
+- Columns, all shown by default in GRC's order from the "NEW INQUIRY" tab: Company name, City, Merchant, Brand, Inquiry, Sample collected, Picture, Status of Poornima, Status of brand, Yash remark; then the added Type, Reply, Last email, and Open + Gmail pinned on the right (`.act`). Defined in `apps/web/src/lib/sheet.ts`; the Columns menu can hide columns or add the extra ones (AWB, EDD, rates…).
+- Clicking an inquiry, or **Open**, shows the details panel (`components/row-panel.tsx`) with every column as a labelled field. Other cells can be typed into directly.
+- Modern touches stay: IBM Plex Sans, rounded status pills with words (never colour alone), sortable headers with `aria-sort`, loading skeleton in `app/(app)/loading.tsx`. Colours: blue #1e40af actions, teal bulk, green done, amber waiting, red late.
+- Rows come from the `v_sheet_rows` view; shared grid component: `components/work-sheet.tsx`. Screenshot new screens at 1440 px wide before shipping.
 
 ## Product rules (don't break these)
 - Gmail access is read-only (`gmail.readonly`). Never add send/modify scopes or write to Gmail.
