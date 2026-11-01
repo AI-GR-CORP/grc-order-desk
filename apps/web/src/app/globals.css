@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/*
+ * Palette named after shade names in GRC's own EPT sheet.
+ * Ink = Apple Navy, action = Mood Indigo, overdue = Haute Red, done = Real Teal.
+ */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-condensed: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #1d2b4f;
+  --color-ink-2: #3b4766;
+  --color-ground: #f4f5f8;
+  --color-surface: #ffffff;
+  --color-line: #dde1e8;
+  --color-line-2: #eceef3;
+  --color-muted: #646c84;
+
+  --color-indigo: #34448a;
+  --color-indigo-soft: #e8ebf6;
+  --color-red: #c3303c;
+  --color-red-soft: #fbe8ea;
+  --color-teal: #0e7a78;
+  --color-teal-soft: #e1f2f1;
+  --color-mustard: #9c6b0c;
+  --color-mustard-soft: #faefd6;
+  --color-slate: #8a91a5;
+  --color-slate-soft: #eef0f4;
+}
+
+html {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-ground);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The selvedge: a woven stripe showing each item of a company as a coloured thread. */
+.selvedge {
+  display: flex;
+  height: 6px;
+  border-radius: 1px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(255, 255, 255, 0.35) 3px 4px);
+}
+.selvedge > span {
+  flex: 1 1 0;
+  min-width: 4px;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 4px);
+}
+
+.sheet-cell {
+  font-family: var(--font-condensed);
+  font-size: 13px;
+}

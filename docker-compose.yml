@@ -1,0 +1,22 @@
+# On the worker server:  docker compose up -d --build
+# Add `--profile web` to also serve the dashboard from this server instead of Vercel.
+services:
+  worker:
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    env_file: apps/worker/.env
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080"]
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+  web:
+    profiles: ["web"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_LOGIN_DOMAIN: ${NEXT_PUBLIC_LOGIN_DOMAIN:-}
+    env_file: apps/web/.env
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
