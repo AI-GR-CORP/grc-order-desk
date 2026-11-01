@@ -59,11 +59,13 @@ export interface SheetColumn {
 }
 
 /**
- * GRC's columns in the order of the "NEW INQUIRY" tab (Company name and City are drawn
- * separately, merged per client), then the added Type / Reply / Last email, then extra details.
+ * Type (Development or Bulk) right after City, then GRC's columns in the order of the "NEW INQUIRY"
+ * tab (Company name and City are drawn separately, merged per client), then the added Reply /
+ * Last email, then extra details.
  * `key` matches the column-label keys in Settings, so renamed columns keep working.
  */
 export const SHEET_COLUMNS: SheetColumn[] = [
+  { key: 'type', label: 'Type', width: 128, sortable: true },
   { key: 'merchant_name', label: 'Merchant', width: 140, devField: 'merchant_name', kind: 'text', sortable: true },
   { key: 'brand', label: 'Brand', width: 124, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
   { key: 'inquiry', label: 'Inquiry', width: 300, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
@@ -72,8 +74,7 @@ export const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'team_status', label: 'Status of Poornima', width: 190, devField: 'team_status', kind: 'longtext' },
   { key: 'brand_status', label: 'Status of brand', width: 164, devField: 'brand_status', kind: 'longtext' },
   { key: 'owner_remark', label: 'Yash remark', width: 184, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },
-  // Added columns
-  { key: 'type', label: 'Type', width: 128 },
+  // Added columns (Type is first, right after City, because it tells development and bulk apart)
   { key: 'reply', label: 'Reply', width: 156, sortable: true },
   { key: 'last_email', label: 'Last email', width: 116, sortable: true },
   // More details (details panel; can be added as columns)
@@ -87,12 +88,12 @@ export const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'next_action', label: 'Work to be done', width: 190, devField: 'next_action', bulkField: 'next_action', kind: 'longtext', extra: true },
 ];
 
-export type GridMode = 'development' | 'client' | 'approvals';
+export type GridMode = 'orders' | 'client' | 'approvals';
 
 /** Every column from GRC's sheet plus the added ones; the Columns menu can hide or add more. */
 const ALL_MAIN = SHEET_COLUMNS.filter((c) => !c.extra).map((c) => c.key);
 export const DEFAULT_COLUMNS: Record<GridMode, string[]> = {
-  development: ALL_MAIN,
+  orders: ALL_MAIN,
   client: ALL_MAIN,
   approvals: ALL_MAIN,
 };

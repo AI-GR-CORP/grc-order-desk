@@ -9,8 +9,7 @@ type CountKey = 'needsReply' | 'approvals' | 'review';
 const MAIN: { href: string; label: string; icon: ReactNode; count?: CountKey }[] = [
   { href: '/', label: 'Reply needed', icon: <IconReply />, count: 'needsReply' },
   { href: '/approvals', label: 'New clients', icon: <IconNewClient />, count: 'approvals' },
-  { href: '/development', label: 'Development', icon: <IconSheet /> },
-  { href: '/bulk', label: 'Bulk orders', icon: <IconBox /> },
+  { href: '/orders', label: 'Orders', icon: <IconSheet /> },
   { href: '/clients', label: 'All clients', icon: <IconPeople /> },
 ];
 const MORE: { href: string; label: string; icon: ReactNode; count?: CountKey }[] = [
@@ -95,9 +94,6 @@ function IconNewClient() {
 }
 function IconSheet() {
   return <Svg><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M3 9h18M3 14.5h18M9 4v16" /></Svg>;
-}
-function IconBox() {
-  return <Svg><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" /><path d="M3 7.5 12 12l9-4.5M12 12v9" /></Svg>;
 }
 function IconPeople() {
   return <Svg><circle cx="8" cy="8.5" r="3" /><circle cx="16.5" cy="9.5" r="2.5" /><path d="M2.5 19.5a5.5 5.5 0 0 1 11 0M14 19.5a4.5 4.5 0 0 1 7.5-3.3" /></Svg>;

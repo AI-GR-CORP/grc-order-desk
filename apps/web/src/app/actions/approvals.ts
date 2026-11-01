@@ -13,8 +13,7 @@ function refresh() {
   revalidatePath('/approvals');
   revalidatePath('/');
   revalidatePath('/clients');
-  revalidatePath('/development');
-  revalidatePath('/bulk');
+  revalidatePath('/orders');
 }
 
 /** Queue "read this client's conversations now" for the worker. */

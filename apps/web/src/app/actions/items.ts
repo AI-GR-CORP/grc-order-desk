@@ -39,7 +39,7 @@ export async function updateDevField(id: string, field: string, raw: string | nu
     if (row.source === 'ai' && before !== value) {
       await supabase.from('correction').insert({ entity: 'dev_item', entity_id: id, field, ai_value: before, human_value: value, corrected_by: user.id });
     }
-    revalidatePath('/development');
+    revalidatePath('/orders');
   });
 }
 
@@ -50,7 +50,7 @@ export async function unlockDevField(id: string, field: string): Promise<ActionR
     const { data } = await supabase.from('dev_item').select('locked_fields').eq('id', id).single();
     const locked = ((data?.locked_fields as string[]) ?? []).filter((f) => f !== field);
     await supabase.from('dev_item').update({ locked_fields: locked }).eq('id', id);
-    revalidatePath('/development');
+    revalidatePath('/orders');
   });
 }
 
@@ -77,7 +77,7 @@ export async function updateBulkField(id: string, field: string, raw: string | n
         ai_value: row[field] == null ? null : String(row[field]), human_value: value == null ? null : String(value), corrected_by: user.id,
       });
     }
-    revalidatePath('/bulk');
+    revalidatePath('/orders');
   });
 }
 
@@ -99,7 +99,7 @@ export async function setBulkStage(orderId: string, stageKey: string, raw: strin
       if (up.error) throw new Error(up.error.message);
       await supabase.from('bulk_order').update({ current_stage: stageKey }).eq('id', orderId);
     }
-    revalidatePath('/bulk');
+    revalidatePath('/orders');
   });
 }
 
@@ -115,6 +115,6 @@ export async function addDevItem(companyId: string | null, inquiry: string, bran
       locked_fields: ['inquiry', 'brand'],
     });
     if (error) throw new Error(error.message);
-    revalidatePath('/development');
+    revalidatePath('/orders');
   });
 }

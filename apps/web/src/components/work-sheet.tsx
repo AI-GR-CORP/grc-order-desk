@@ -27,6 +27,17 @@ import { RowPanel } from './row-panel';
 import { BulkStatusText, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
 import { Button, inputClass } from './ui';
 
+/** Tripti's checklist for one bulk order: step key -> what was written, and the latest step reached. */
+export interface BulkChecklist {
+  stages: Record<string, { value: string | null; locked?: boolean }>;
+  current_stage: string | null;
+}
+export interface StageDef {
+  key: string;
+  label: string;
+  optional?: boolean;
+}
+
 export interface ApprovalInfo {
   conversations: number;
   cost: number;
@@ -42,6 +53,8 @@ interface Props {
   approvals?: Record<string, ApprovalInfo>;
   canApprove?: boolean;
   companies?: { id: string; name: string }[];
+  bulk?: Record<string, BulkChecklist>;
+  stageDefs?: StageDef[];
   tabs?: ReactNode;
   note?: ReactNode;
   empty: ReactNode;
@@ -54,6 +67,7 @@ const titleOf = (r: SheetRow) => (r.source === 'thread' ? r.thread_subject || '(
 function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
   const dir = sort.dir === 'asc' ? 1 : -1;
   if (sort.key === 'reply') return (replyRank(a) - replyRank(b)) * dir;
+  if (sort.key === 'type') return a.row_kind.localeCompare(b.row_kind) * dir;
   if (sort.key === 'last_email') return ((a.last_at ?? '').localeCompare(b.last_at ?? '')) * dir;
   const av = sort.key === 'inquiry' ? titleOf(a) : cellValue(a, sort.key);
   const bv = sort.key === 'inquiry' ? titleOf(b) : cellValue(b, sort.key);
@@ -67,7 +81,7 @@ function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
  * The main grid. One header row per client with their rows underneath; the Inquiry column stays
  * in view while scrolling sideways and opens a details panel; Open and Gmail stay pinned on the right.
  */
-export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approvals, canApprove, companies, tabs, note, empty }: Props) {
+export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approvals, canApprove, companies, bulk, stageDefs, tabs, note, empty }: Props) {
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
@@ -116,6 +130,11 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
   const openRow = openId ? rows.find((r) => r.row_id === openId) ?? null : null;
   const closePanel = useCallback(() => setOpenId(null), []);
   let rowNo = 0;
+  const stepLabel = (r: SheetRow) => {
+    if (r.source !== 'bulk' || !r.item_id) return null;
+    const cur = bulk?.[r.item_id]?.current_stage;
+    return cur ? stageDefs?.find((d) => d.key === cur)?.label ?? null : null;
+  };
 
   return (
     <>
@@ -137,9 +156,9 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
               Select all {groups.length}
             </button>
           )}
-          {mode === 'development' && companies && (
+          {mode === 'orders' && companies && (
             <Button size="sm" variant="secondary" className="h-9" onClick={() => setAdding((a) => !a)}>
-              <span aria-hidden className="text-[16px] leading-none">+</span> Add a row
+              <span aria-hidden className="text-[16px] leading-none">+</span> Add an inquiry
             </Button>
           )}
           <div className="ml-auto flex items-center gap-3">
@@ -239,7 +258,7 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
                             {c.key === 'inquiry' ? (
                               <InquiryCell r={r} onOpen={() => setOpenId(r.row_id)} />
                             ) : (
-                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} />
+                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} stepLabel={stepLabel(r)} />
                             )}
                           </td>
                         ))}
@@ -312,6 +331,8 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
         <RowPanel
           row={openRow}
           labels={labels}
+          checklist={openRow.source === 'bulk' && openRow.item_id ? bulk?.[openRow.item_id] : undefined}
+          stageDefs={stageDefs}
           thumbs={openRow.thread_id ? thumbnails[openRow.thread_id] ?? [] : []}
           onClose={closePanel}
           approveSlot={
@@ -425,7 +446,7 @@ function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
 }
 
 /** Any other cell. Rows that are items or orders can be typed into; conversations are read-only. */
-function Cell({ col, r, thumbs }: { col: SheetColumn; r: SheetRow; thumbs: string[] }) {
+function Cell({ col, r, thumbs, stepLabel }: { col: SheetColumn; r: SheetRow; thumbs: string[]; stepLabel?: string | null }) {
   switch (col.key) {
     case 'picture':
       return <Thumbs urls={thumbs} />;
@@ -442,7 +463,13 @@ function Cell({ col, r, thumbs }: { col: SheetColumn; r: SheetRow; thumbs: strin
     return null;
   }
   if (r.source === 'bulk') {
-    if (col.key === 'team_status') return <BulkStatusText status={r.stage} />;
+    if (col.key === 'team_status')
+      return (
+        <div className="flex flex-col items-start gap-1">
+          <BulkStatusText status={r.stage} />
+          {stepLabel && <span className="text-[13px] text-muted">Latest step: {stepLabel}</span>}
+        </div>
+      );
     if (!col.bulkField) return null;
     return (
       <EditableCell

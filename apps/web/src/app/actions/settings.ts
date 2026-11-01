@@ -53,7 +53,7 @@ export async function saveColumnLabels(labels: Record<string, string>): Promise<
     await assertUser(true);
     const clean = Object.fromEntries(Object.entries(labels).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
     await setSetting('column_labels', clean);
-    revalidatePath('/development');
+    revalidatePath('/orders');
     revalidatePath('/settings');
   });
 }

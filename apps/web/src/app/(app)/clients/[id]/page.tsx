@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import type { BulkOrderView, BulkStageDefRow } from '@grc/core';
 import { notFound } from 'next/navigation';
 import { ClientHeader } from '@/components/client-header';
 import { GridCard, ReplyCell, SheetPage, SheetTabs, shortDate } from '@/components/sheet';
 import { Empty, Stats } from '@/components/ui';
-import { WorkSheet } from '@/components/work-sheet';
+import { WorkSheet, type BulkChecklist } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
 import { fetchAll, getMailboxes, getSettings, getThumbnails } from '@/lib/data';
 import { gmailLink } from '@/lib/format';
@@ -20,7 +21,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
   const { data: company } = await supabase.from('company').select('id, name, city, region, domains, approval').eq('id', id).maybeSingle();
   if (!company) notFound();
 
-  const [contacts, rows, others, settings, mailboxes] = await Promise.all([
+  const [contacts, rows, others, settings, mailboxes, bulkRows, stageDefs] = await Promise.all([
     supabase.from('contact').select('name, email').eq('company_id', id).order('email'),
     fetchAll<SheetRow>((a, b) => supabase.from('v_sheet_rows').select('*').eq('company_id', id).order('row_id').range(a, b)),
     supabase
@@ -32,7 +33,16 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       .limit(200),
     getSettings(supabase),
     getMailboxes(supabase),
+    supabase.from('v_bulk_orders').select('id, stages, current_stage').eq('company_id', id),
+    supabase.from('bulk_stage_def').select('*').order('sort_order'),
   ]);
+  const bulk: Record<string, BulkChecklist> = Object.fromEntries(
+    ((bulkRows.data ?? []) as Pick<BulkOrderView, 'id' | 'stages' | 'current_stage'>[]).map((b) => [
+      b.id,
+      { current_stage: b.current_stage, stages: Object.fromEntries(Object.entries(b.stages ?? {}).map(([k, v]) => [k, { value: v.value, locked: v.locked }])) },
+    ]),
+  );
+  const defs = ((stageDefs.data ?? []) as BulkStageDefRow[]).map((d) => ({ key: d.key, label: d.label, optional: d.optional }));
   const mailboxEmail = mailboxes[0]?.email ?? null;
   const otherRows = (others.data ?? []) as { id: string; subject: string | null; category: string; last_message_at: string | null; reply_state: string | null; waiting_on: string | null; gmail_thread_id: string }[];
   const people = (contacts.data ?? []) as { name: string | null; email: string }[];
@@ -111,6 +121,8 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
         <WorkSheet
           mode="client"
           rows={rows}
+          bulk={bulk}
+          stageDefs={defs}
           thumbnails={thumbnails}
           labels={settings.column_labels}
           tabs={tabs}

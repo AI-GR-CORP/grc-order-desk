@@ -2,12 +2,13 @@
 import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { updateBulkField, updateDevField } from '@/app/actions/items';
+import { setBulkStage, updateBulkField, updateDevField } from '@/app/actions/items';
 import type { ActionResult } from '@/app/actions/result';
 import { cx, gmailLink } from '@/lib/format';
 import { cellValue, label, SHEET_COLUMNS, type SheetColumn, type SheetRow } from '@/lib/sheet';
 import { BulkStatusText, ReplyCell, shortDate, TypeChip } from './sheet';
 import { buttonClass, inputClass } from './ui';
+import type { BulkChecklist, StageDef } from './work-sheet';
 
 /** Everything about one row, in a side panel: every column as a labelled field you can edit. */
 export function RowPanel({
@@ -16,12 +17,16 @@ export function RowPanel({
   thumbs,
   onClose,
   approveSlot,
+  checklist,
+  stageDefs,
 }: {
   row: SheetRow;
   labels: Record<string, string>;
   thumbs: string[];
   onClose: () => void;
   approveSlot?: React.ReactNode;
+  checklist?: BulkChecklist;
+  stageDefs?: StageDef[];
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -145,6 +150,27 @@ export function RowPanel({
               {main.map((c) => (
                 <PanelField key={c.key} label={label(c, labels)} value={cellValue(row, c.key)} kind={c.kind} options={c.options} onSave={save(c)} locked={row.locked_fields.includes(field(c)!)} />
               ))}
+            </section>
+          )}
+
+          {row.source === 'bulk' && stageDefs && stageDefs.length > 0 && (
+            <section className="rounded-xl border border-line">
+              <h3 className="border-b border-line px-4 py-3 text-[14px] font-semibold">Bulk checklist</h3>
+              <div className="space-y-4 px-4 py-4">
+                {stageDefs.map((d) => {
+                  const v = checklist?.stages[d.key];
+                  const current = checklist?.current_stage === d.key;
+                  return (
+                    <PanelField
+                      key={d.key}
+                      label={current ? `${d.label} (latest step)` : d.label}
+                      value={v?.value ?? null}
+                      onSave={(val) => setBulkStage(row.item_id!, d.key, val)}
+                      locked={v?.locked}
+                    />
+                  );
+                })}
+              </div>
             </section>
           )}
 

@@ -46,8 +46,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         items={[
           { label: 'Approved clients', value: counts.approved ?? 0, tone: 'teal' },
           { label: 'Waiting for our reply', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.awaiting_reply, 0), tone: 'red', href: '/' },
-          { label: 'Open development', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_dev, 0), tone: 'indigo', href: '/development' },
-          { label: 'Open bulk orders', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_bulk, 0), tone: 'teal', href: '/bulk' },
+          { label: 'Development inquiries open', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_dev, 0), tone: 'indigo', href: '/orders' },
+          { label: 'Bulk orders in progress', value: all.filter((r) => r.approval === 'approved').reduce((n, r) => n + r.open_bulk, 0), tone: 'teal', href: '/orders' },
         ]}
       />
       <GridCard>
