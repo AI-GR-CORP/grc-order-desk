@@ -61,10 +61,10 @@ export interface SheetColumn {
  * `key` matches the column-label keys in Settings, so renamed columns keep working.
  */
 export const SHEET_COLUMNS: SheetColumn[] = [
-  { key: 'merchant_name', label: 'merchant', width: 110, devField: 'merchant_name', kind: 'text' },
+  { key: 'merchant_name', label: 'merchant', width: 140, devField: 'merchant_name', kind: 'text' },
   { key: 'brand', label: 'brand', width: 100, devField: 'brand', bulkField: 'brand', kind: 'text' },
-  { key: 'inquiry', label: 'Inquiry', width: 260, devField: 'inquiry', bulkField: 'description', kind: 'longtext' },
-  { key: 'sample_collected', label: 'sample collected', width: 84, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
+  { key: 'inquiry', label: 'Inquiry', width: 270, devField: 'inquiry', bulkField: 'description', kind: 'longtext' },
+  { key: 'sample_collected', label: 'sample collected', width: 140, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
   { key: 'picture', label: 'picture', width: 84 },
   { key: 'team_status', label: 'Status of Poornima', width: 170, devField: 'team_status', kind: 'longtext' },
   { key: 'brand_status', label: 'Status of brand', width: 140, devField: 'brand_status', kind: 'longtext' },
@@ -85,7 +85,7 @@ export const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'next_action', label: 'Work to be done', width: 180, devField: 'next_action', bulkField: 'next_action', kind: 'longtext', extra: true },
 ];
 
-export const COMPANY_LABEL = 'COMPANY NAME';
+export const COMPANY_LABEL = 'Company name';
 export const CITY_LABEL = 'City';
 
 export function label(col: SheetColumn, overrides: Record<string, string>): string {

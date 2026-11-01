@@ -1,7 +1,7 @@
 import { companyKey, type ClientApproval, type ClientQueueRow, type ThreadBriefRow } from '@grc/core';
 import { domainOf, isFreemail, isInternal } from '@grc/core/mail';
 import { SheetPage, SheetTabs } from '@/components/sheet';
-import { Empty, PageHeader } from '@/components/ui';
+import { Empty, PageHeader, Stats } from '@/components/ui';
 import { UnmatchedSheet, type UnmatchedGroup } from '@/components/unmatched-sheet';
 import { WorkSheet, type ApprovalInfo } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
@@ -60,7 +60,8 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     href: t.param === 'waiting' ? '/approvals' : `/approvals?tab=${t.param}`,
     active: t.param === current.param,
   }));
-  const footer = <SheetTabs tabs={tabs} />;
+  const tabBar = <SheetTabs tabs={tabs} />;
+  const costPerThread = settings.ai_models.extract.includes('opus') ? 0.12 : 0.05;
   const canEdit = user.isAdmin;
 
   const header = (
@@ -74,7 +75,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     return (
       <SheetPage>
         {header}
-        <UnmatchedSheet groups={groups} companies={companies} canEdit={canEdit} footer={footer} empty={<Empty title="Every sender is matched to a client" />} />
+        <UnmatchedSheet groups={groups} companies={companies} canEdit={canEdit} tabs={tabBar} empty={<Empty title="Every sender is matched to a client" />} />
       </SheetPage>
     );
   }
@@ -86,7 +87,6 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     const chunk = ids.slice(i, i + 150);
     rows.push(...(await fetchAll<SheetRow>((a, b) => supabase.from('v_sheet_rows').select('*').in('company_id', chunk).order('row_id').range(a, b))));
   }
-  const costPerThread = settings.ai_models.extract.includes('opus') ? 0.12 : 0.05;
   const approvals: Record<string, ApprovalInfo> = Object.fromEntries(
     list.map((q) => [q.id, { conversations: q.tracked_threads, cost: q.tracked_threads * costPerThread, approvedAt: q.approval_at }]),
   );
@@ -94,9 +94,21 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
 
   const mb = mailboxes[0];
   const stillLearning = mb && ['pending', 'ingesting', 'triaging', 'discovery'].includes(mb.backfill_stage ?? '');
+  const waitingList = queue.filter((q) => q.approval === 'pending');
+  const waitingConversations = waitingList.reduce((n, q) => n + q.tracked_threads, 0);
+  const stats = (
+    <Stats
+      items={[
+        { label: 'Clients waiting for approval', value: counts.waiting ?? 0, tone: 'mustard', href: '/approvals' },
+        { label: 'Their conversations', value: waitingConversations, tone: 'indigo' },
+        { label: 'To read them all', value: `$${(waitingConversations * costPerThread).toFixed(2)}`, tone: 'slate' },
+        { label: 'Approved clients', value: counts.approved ?? 0, tone: 'teal', href: '/approvals?tab=approved' },
+      ]}
+    />
+  );
   const note =
     current.approval === 'pending' ? (
-      <p className="border-b border-line bg-mustard-soft px-4 py-2 text-[13.5px] text-ink-2">
+      <p className="mx-5 mb-3 rounded-lg bg-mustard-soft px-3.5 py-2 text-[13.5px] text-ink-2">
         {stillLearning
           ? 'Still reading the mailbox. More clients appear here when it finishes.'
           : canEdit
@@ -108,6 +120,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   return (
     <SheetPage>
       {header}
+      {stats}
       <WorkSheet
         mode="approvals"
         approvalTab={current.approval}
@@ -117,7 +130,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         thumbnails={thumbnails}
         labels={settings.column_labels}
         note={note}
-        footer={footer}
+        tabs={tabBar}
         empty={
           <Empty title={current.approval === 'pending' ? 'No clients waiting' : current.approval === 'approved' ? 'No approved clients yet' : 'No ignored clients'}>
             {current.approval === 'pending' ? 'New clients appear here when their first development or bulk email arrives.' : null}

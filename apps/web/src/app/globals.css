@@ -1,45 +1,44 @@
 @import "tailwindcss";
 
 /*
- * Looks like GRC's own Google Sheet on purpose: Arial, cyan header row (#75fbfd) and
- * yellow company cells (#ffff54) sampled from "customer portfolio 2025", black cell borders.
- * Chrome follows Google Sheets: green for actions, blue for links and selection.
+ * Modern data grid. Palette from shade names in GRC's own EPT sheet:
+ * Apple Navy (ink), Mood Indigo (actions, development), Real Teal (bulk, done), Haute Red (late).
  */
 @theme {
-  --font-sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
-  --font-condensed: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-condensed: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #202124;
-  --color-ink-2: #3c4043;
-  --color-ground: #f8f9fa;
+  --color-ink: #1b2236;
+  --color-ink-2: #3e4659;
+  --color-ground: #f4f5f8;
   --color-surface: #ffffff;
-  --color-line: #dadce0;
-  --color-line-2: #e8eaed;
-  --color-muted: #5f6368;
+  --color-line: #e3e6ec;
+  --color-line-2: #eef0f4;
+  --color-muted: #6b7285;
+  --color-faint: #9aa0ae;
 
-  --color-indigo: #1a73e8;
-  --color-indigo-soft: #e8f0fe;
-  --color-go: #188038;
-  --color-go-dark: #137333;
-  --color-go-soft: #e6f4ea;
-  --color-red: #d93025;
-  --color-red-soft: #fce8e6;
-  --color-teal: #188038;
-  --color-teal-soft: #e6f4ea;
-  --color-mustard: #b06000;
-  --color-mustard-soft: #fef7e0;
-  --color-slate: #80868b;
-  --color-slate-soft: #f1f3f4;
+  --color-indigo: #3446a8;
+  --color-indigo-soft: #eef0fb;
+  --color-go: #3446a8;
+  --color-go-dark: #283784;
+  --color-go-soft: #eef0fb;
+  --color-teal: #0f7a6c;
+  --color-teal-soft: #e3f4f0;
+  --color-red: #c8322f;
+  --color-red-soft: #fdecea;
+  --color-mustard: #a35f00;
+  --color-mustard-soft: #fdf3e1;
+  --color-slate: #7a8194;
+  --color-slate-soft: #f1f2f5;
 
-  --color-head: #75fbfd;
-  --color-company: #ffff54;
-  --color-grid: #000000;
+  --color-head: #f8f9fb;
 }
 
 html {
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background: var(--color-surface);
+  background: var(--color-ground);
+  font-feature-settings: "tnum" 1;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -60,11 +59,21 @@ body {
   }
 }
 
-/* ------------------------------------------------------------------ the sheet */
+/* ------------------------------------------------------------------ grid card */
+.grid-card {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(27, 34, 54, 0.04);
+}
+
 .sheet-wrap {
   overflow: auto;
-  background: #fff;
-  max-height: 72dvh;
+  max-height: 70dvh;
 }
 @media (min-width: 1024px) {
   .sheet-wrap { max-height: none; }
@@ -75,114 +84,122 @@ body {
   border-spacing: 0;
   width: max-content;
   min-width: 100%;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.35;
-  color: #000;
-  border-left: 1px solid var(--color-grid);
-}
-.sheet th,
-.sheet td {
-  border-right: 1px solid var(--color-grid);
-  border-bottom: 1px solid var(--color-grid);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--color-ink);
 }
 .sheet thead th {
   position: sticky;
   top: 0;
   z-index: 3;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-line);
   background: var(--color-head);
-  font-weight: 700;
-  font-size: 13.5px;
-  padding: 9px 8px;
-  text-align: center;
-  vertical-align: middle;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
 }
 .sheet td {
-  background: #fff;
-  padding: 5px 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-line-2);
+  background: var(--color-surface);
   vertical-align: middle;
 }
-.sheet tbody tr:hover > td:not(.co):not(.rn):not(.city) {
-  background: #f8f9fa;
-}
+.sheet tbody tr:hover > td:not(.co):not(.city) { background: #fafbfd; }
+/* a firmer line between one client's rows and the next */
+.sheet tr.group-last > td,
+.sheet td.co,
+.sheet td.city { border-bottom-color: var(--color-line); }
+.sheet tbody tr:last-child > td { border-bottom: 0; }
 
-/* row numbers, like the grey column in Sheets; red when a customer is waiting on GRC */
+/* row numbers; a thin red bar when the customer is waiting on GRC */
 .sheet .rn {
   position: sticky;
   left: 0;
   z-index: 2;
-  width: 38px;
-  min-width: 38px;
-  padding: 0 2px;
-  background: #f8f9fa !important;
-  color: #5f6368;
-  font-size: 11px;
-  font-weight: 400;
+  width: 44px;
+  min-width: 44px;
+  padding: 0 4px;
+  color: var(--color-faint);
+  font-size: 12px;
   text-align: center;
 }
 .sheet thead .rn { z-index: 5; }
 .sheet .rn.alert {
-  background: var(--color-red) !important;
-  color: #fff;
-  font-weight: 700;
+  color: var(--color-red);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--color-red);
 }
 
-/* the yellow company cell, merged down the company's rows */
+/* the client's column, merged down its rows and kept in view when scrolling sideways */
 .sheet .co {
   position: sticky;
-  left: 38px;
+  left: 44px;
   z-index: 1;
-  min-width: 160px;
-  max-width: 220px;
-  padding: 8px 10px;
-  background: var(--color-company);
-  font-size: 15px;
-  font-weight: 700;
-  text-align: center;
+  min-width: 190px;
+  max-width: 240px;
+  padding-top: 13px;
+  border-right: 1px solid var(--color-line);
+  vertical-align: top;
   overflow-wrap: anywhere;
 }
-.sheet thead .co {
-  z-index: 4;
-  background: var(--color-head);
-  font-size: 13.5px;
-}
-.sheet .co a:hover { text-decoration: underline; }
-.sheet .co.unknown { background: #fff9c4; }
-
-.sheet .city { text-align: center; font-size: 12px; }
+.sheet thead .co { z-index: 4; padding-top: 11px; }
+.sheet .co.unknown { background: #fffdf5; }
+.sheet .city { color: var(--color-muted); font-size: 13px; vertical-align: top; padding-top: 13px; }
 .sheet .center { text-align: center; }
+.sheet thead th.center { text-align: center; }
 .sheet .pic img {
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
   object-fit: cover;
-  border: 1px solid #dadce0;
 }
 
-/* tabs along the bottom, like sheet tabs */
+/* tabs across the top of the grid */
 .sheet-tabs a,
 .sheet-tabs button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  font-size: 13px;
-  color: #3c4043;
+  gap: 7px;
+  height: 46px;
+  padding: 0 4px;
+  margin-right: 18px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted);
+  font-size: 13.5px;
+  font-weight: 500;
   white-space: nowrap;
-  border-top: 3px solid transparent;
 }
 .sheet-tabs a:hover,
-.sheet-tabs button:hover { background: #e8eaed; }
+.sheet-tabs button:hover { color: var(--color-ink); }
 .sheet-tabs [aria-current="page"],
 .sheet-tabs [aria-pressed="true"] {
-  background: #fff;
-  color: var(--color-go);
-  font-weight: 700;
-  border-top-color: var(--color-go);
-  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.25);
+  border-bottom-color: var(--color-indigo);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.sheet-tabs .count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-slate-soft);
+  color: var(--color-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+}
+.sheet-tabs [aria-current="page"] .count,
+.sheet-tabs [aria-pressed="true"] .count {
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo);
 }
 
 .sheet-cell {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 13.5px;
 }

@@ -1,7 +1,8 @@
 import { DEV_STAGE_CLOSED } from '@grc/core';
 import { SheetPage, SheetTabs, type TabItem } from '@/components/sheet';
-import { buttonClass, Empty, PageHeader } from '@/components/ui';
+import { buttonClass, Empty, PageHeader, Stats } from '@/components/ui';
 import { WorkSheet } from '@/components/work-sheet';
+import { isWaiting } from '@/lib/sheet';
 import { fetchAll, getSettings, getThumbnails } from '@/lib/data';
 import type { SheetRow } from '@/lib/sheet';
 import { createSupabase } from '@/lib/supabase/server';
@@ -46,6 +47,14 @@ export default async function DevelopmentPage({ searchParams }: { searchParams: 
         detail="Every sample and inquiry, one row each, under the client’s name. Click a cell to type in it."
         actions={<a href="/api/export/development" className={buttonClass('secondary')}>Download Excel</a>}
       />
+      <Stats
+        items={[
+          { label: 'Open inquiries', value: open.length, tone: 'indigo', href: '/development' },
+          { label: 'Waiting for our reply', value: open.filter(isWaiting).length, tone: 'red' },
+          { label: `Not moving for ${settings.non_moving_days}+ days`, value: notMoving.length, tone: 'mustard', href: '/development?tab=not-moving' },
+          { label: 'Done', value: all.filter(closed).length, tone: 'teal', href: '/development?tab=done' },
+        ]}
+      />
       <WorkSheet
         mode="development"
         rows={current.rows}
@@ -57,7 +66,7 @@ export default async function DevelopmentPage({ searchParams }: { searchParams: 
             Rows appear after you approve a client under New clients and the AI reads their emails, or when you click Add a row.
           </Empty>
         }
-        footer={<SheetTabs tabs={tabs.map(({ rows: _rows, ...t }) => t)} />}
+        tabs={<SheetTabs tabs={tabs.map(({ rows: _rows, ...t }) => t)} />}
       />
     </SheetPage>
   );

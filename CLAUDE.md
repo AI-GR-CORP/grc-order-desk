@@ -37,11 +37,12 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - **Database:** add a NEW file `supabase/migrations/YYYYMMDDHHMMSS_name.sql`; never edit an applied migration. The project has "auto-expose new tables" OFF and automatic RLS ON, so every new table/view/function needs explicit RLS policies and grants to `authenticated` (copy the patterns in `20261101000002_security_views.sql` / `…003_client_approval.sql`). Show the user `pnpm ops migrate` output and get a yes before `--apply`.
 - **Settings that live in the database, not code:** AI models (`app_setting.ai_models`), reply time, business hours, owners (`owner_emails`). Change them with SQL via a migration or ask the user to use the dashboard.
 
-## Screens look like GRC's Google Sheet (keep it that way)
-- Every main screen is a sheet: cyan header row (`--color-head` #75fbfd), the client's name in a yellow cell (`--color-company` #ffff54) merged down its rows, black cell borders, Arial, tabs along the bottom. Styles: `.sheet` in `apps/web/src/app/globals.css`.
-- Columns use GRC's own names, in the order of the "NEW INQUIRY" tab: COMPANY NAME, City, merchant, brand, Inquiry, sample collected, picture, Status of Poornima, Status of brand, Yash remark. Added columns: Type, Reply, Last email, Email. Defined in `apps/web/src/lib/sheet.ts`.
-- Rows come from the `v_sheet_rows` view (development items, bulk orders, and conversations not yet an item). The shared component is `components/work-sheet.tsx`.
-- The owner is not technical: plain words, no jargon, one clear action per button. Check new screens with a screenshot before shipping.
+## Screens: modern data grid with GRC's columns
+- Every main screen is: page title and one-line description, a row of summary cards (`Stats` in `components/ui.tsx`), then a white rounded grid card (`GridCard`) with tabs across the top, filter chips and search, and the grid. Styles: `.grid-card`, `.sheet`, `.sheet-tabs` in `apps/web/src/app/globals.css`.
+- Look: IBM Plex Sans; small uppercase column headers; light row dividers, no vertical lines except after the client column; rounded status pills; red bar on the row number when a customer waits for a reply. Colours: ink #1b2236, indigo #3446a8 (actions, development), teal #0f7a6c (bulk, done), red #c8322f (late), amber (waiting).
+- Columns keep GRC's own names and order from the "NEW INQUIRY" tab: Company name, City, merchant, brand, Inquiry, sample collected, picture, Status of Poornima, Status of brand, Yash remark, plus Type, Reply, Last email, Email. Defined in `apps/web/src/lib/sheet.ts`. A client's rows sit under one merged client cell.
+- Rows come from the `v_sheet_rows` view; the shared grid component is `components/work-sheet.tsx`.
+- The owner is not technical: plain words, one clear action per button. Check new screens with a screenshot at 1440 px wide before shipping.
 
 ## Product rules (don't break these)
 - Gmail access is read-only (`gmail.readonly`). Never add send/modify scopes or write to Gmail.

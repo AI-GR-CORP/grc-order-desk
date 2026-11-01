@@ -32,17 +32,17 @@ export function NavRail({ counts, email, sync }: { counts: Record<CountKey, numb
         href={l.href}
         aria-current={on ? 'page' : undefined}
         className={cx(
-          'flex shrink-0 items-center gap-3 rounded-r-full py-2.5 pl-5 pr-3 text-[15px]',
-          on ? 'bg-go-soft font-bold text-go' : 'text-ink-2 hover:bg-slate-soft',
+          'mx-3 flex shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-[14.5px]',
+          on ? 'bg-indigo-soft font-semibold text-indigo' : 'font-medium text-ink-2 hover:bg-slate-soft hover:text-ink',
         )}
       >
-        <span className={cx('size-5 shrink-0', on ? 'text-go' : 'text-muted')} aria-hidden>{l.icon}</span>
+        <span className={cx('size-5 shrink-0', on ? 'text-indigo' : 'text-faint')} aria-hidden>{l.icon}</span>
         <span className="flex-1">{l.label}</span>
         {n > 0 && (
           <span
             className={cx(
-              'min-w-6 rounded-full px-2 py-0.5 text-center text-[12px] font-bold',
-              l.count === 'needsReply' ? 'bg-red text-white' : l.count === 'approvals' ? 'bg-company text-black ring-1 ring-black/20' : 'bg-slate-soft text-ink-2',
+              'min-w-6 rounded-full px-2 py-[1px] text-center text-[12px] font-semibold tabular-nums',
+              l.count === 'needsReply' ? 'bg-red text-white' : l.count === 'approvals' ? 'bg-mustard-soft text-mustard' : 'bg-slate-soft text-ink-2',
             )}
           >
             {n}
@@ -56,17 +56,18 @@ export function NavRail({ counts, email, sync }: { counts: Record<CountKey, numb
     <aside className="sticky top-0 z-30 flex flex-col border-b border-line bg-surface lg:h-dvh lg:border-b-0 lg:border-r">
       <div className="flex items-center justify-between gap-3 px-5 py-3 lg:block lg:pb-4 lg:pt-5">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid grid-cols-2 overflow-hidden rounded-sm border border-black" aria-hidden>
-            <span className="h-5 w-3 bg-company" />
-            <span className="h-5 w-3 bg-head" />
+          <span className="flex h-7 w-7 flex-col justify-center gap-[3px] rounded-lg bg-ink px-[6px]" aria-hidden>
+            <span className="h-[3px] rounded-full bg-[#8fa0ff]" />
+            <span className="h-[3px] rounded-full bg-[#5fd0bd]" />
+            <span className="h-[3px] rounded-full bg-[#f0b45a]" />
           </span>
-          <span className="text-[17px] font-bold">GRC Order Desk</span>
+          <span className="text-[16px] font-semibold tracking-[-0.01em]">GRC Order Desk</span>
         </Link>
         <div className="lg:mt-2.5">{sync}</div>
       </div>
-      <nav className="flex gap-1 overflow-x-auto pb-2 pr-3 lg:flex-col lg:overflow-visible" aria-label="Main">
+      <nav className="flex gap-0.5 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible" aria-label="Main">
         {MAIN.map(item)}
-        <div className="mx-5 my-2 hidden border-t border-line lg:block" />
+        <div className="mx-6 my-3 hidden border-t border-line lg:block" />
         {MORE.map(item)}
       </nav>
       <div className="mt-auto hidden border-t border-line px-5 py-4 text-[12.5px] text-muted lg:block">

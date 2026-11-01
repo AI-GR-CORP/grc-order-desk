@@ -1,8 +1,7 @@
-import Link from 'next/link';
 import type { NeedsReplyRow } from '@grc/core';
 import { ReplySheet } from '@/components/reply-sheet';
-import { SheetPage, SheetTabs } from '@/components/sheet';
-import { Empty, LinkButton, PageHeader } from '@/components/ui';
+import { GridCard, SheetPage, SheetTabs } from '@/components/sheet';
+import { Empty, LinkButton, PageHeader, Stats } from '@/components/ui';
 import { getAppUser } from '@/lib/auth';
 import { getMailboxes, getSettings } from '@/lib/data';
 import { createSupabase } from '@/lib/supabase/server';
@@ -48,14 +47,21 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             : `${awaiting.length} ${awaiting.length === 1 ? 'customer is' : 'customers are'} waiting for GRC. Target: reply within ${settings.reply_sla_minutes} minutes in working hours.`
         }
       />
-      {waitingClients > 0 && (
-        <Link href="/approvals" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-black/20 bg-company px-5 py-2.5 text-[14px] text-black hover:brightness-95">
-          <span className="font-bold">{waitingClients} new {waitingClients === 1 ? 'client is' : 'clients are'} waiting for your approval.</span>
-          <span>Their emails aren’t tracked until you approve them.</span>
-          <span className="ml-auto font-bold underline">Open New clients</span>
-        </Link>
-      )}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <Stats
+        items={[
+          { label: 'Waiting for our reply', value: awaiting.length, tone: 'red', href: '/' },
+          { label: 'Past the reply time', value: awaiting.filter((r) => r.reply_due_at && new Date(r.reply_due_at).getTime() < Date.now()).length, tone: 'red' },
+          { label: 'New clients to approve', value: waitingClients, tone: 'mustard', href: '/approvals' },
+          { label: 'Maybe already answered', value: maybe.length, tone: 'slate', href: '/?tab=maybe' },
+        ]}
+      />
+      <GridCard>
+        <SheetTabs
+          tabs={[
+            { key: 'waiting', label: 'Waiting for our reply', count: awaiting.length, href: '/', active: !showMaybe },
+            { key: 'maybe', label: 'Maybe already answered', count: maybe.length, href: '/?tab=maybe', active: showMaybe },
+          ]}
+        />
         {list.length === 0 ? (
           <div className="flex-1">
             <Empty title={showMaybe ? 'Nothing to check' : 'All caught up'}>
@@ -65,20 +71,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         ) : (
           <>
             {showMaybe && (
-              <p className="border-b border-line bg-mustard-soft px-4 py-2 text-[13.5px]">
+              <p className="mx-5 my-3 rounded-lg bg-mustard-soft px-3.5 py-2 text-[13.5px]">
                 GRC emailed these customers separately after their message, so they may already be answered. Check and tick them off.
               </p>
             )}
             <ReplySheet rows={list} maybe={showMaybe} />
           </>
         )}
-        <SheetTabs
-          tabs={[
-            { key: 'waiting', label: 'Waiting for our reply', count: awaiting.length, href: '/', active: !showMaybe },
-            { key: 'maybe', label: 'Maybe already answered', count: maybe.length, href: '/?tab=maybe', active: showMaybe },
-          ]}
-        />
-      </div>
+      </GridCard>
     </SheetPage>
   );
 }
