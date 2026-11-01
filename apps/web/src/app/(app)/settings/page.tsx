@@ -1,4 +1,4 @@
-import { AccessRulesForm, ColumnLabelsForm, MailboxControls, PendingUserRow, ReplyRulesForm, TeamMemberForm, UserRow } from '@/components/settings-forms';
+import { AccessRulesForm, ColumnLabelsForm, MailboxControls, PendingUserRow, RelockGmailForm, ReplyRulesForm, TeamMemberForm, UserRow } from '@/components/settings-forms';
 import { buttonClass, PageHeader, Panel } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { ago } from '@/lib/format';
@@ -78,6 +78,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               ))}
             </ul>
           )}
+          {user.isAdmin && mailboxes.length > 0 && <RelockGmailForm />}
         </Panel>
 
         <Panel title="Reply rules">

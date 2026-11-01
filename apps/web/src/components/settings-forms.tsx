@@ -5,6 +5,7 @@ import { DEV_COLUMNS, type BusinessHours } from '@grc/core';
 import type { ActionResult } from '@/app/actions/result';
 import {
   grantAccess,
+  relockGmailConnections,
   removeAccess,
   retryImport,
   saveAccessRules,
@@ -221,5 +222,44 @@ export function ColumnLabelsForm({ labels }: { labels: Record<string, string> })
       ))}
       <div className="sm:col-span-2"><Button disabled={pending}>Save column names</Button></div>
     </form>
+  );
+}
+
+/** One-time tool: re-lock saved Gmail connections with the worker's new encryption key. */
+export function RelockGmailForm() {
+  const [key, setKey] = useState('');
+  const [pending, start] = useTransition();
+  return (
+    <details className="border-t border-line-2 px-4 py-3 text-[13px]">
+      <summary className="cursor-pointer text-muted hover:text-ink">Changed the encryption key? Re-lock the Gmail connection</summary>
+      <form
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const r = await relockGmailConnections(key);
+            if (!r.ok) return void toast.error(r.error);
+            setKey('');
+            toast.success(
+              r.data && r.data.updated > 0
+                ? `Done: ${r.data.updated} Gmail connection re-locked. Now set TOKEN_ENCRYPTION_KEY in Vercel to the new key and redeploy.`
+                : 'Already using the new key. Nothing changed.',
+            );
+          });
+        }}
+      >
+        <input
+          type="password"
+          autoComplete="off"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder="New TOKEN_ENCRYPTION_KEY (from the worker)"
+          className={cx(inputClass, 'w-96 max-w-full')}
+          aria-label="New encryption key"
+        />
+        <Button size="sm" variant="primary" disabled={pending || key.trim().length < 40}>Re-lock connection</Button>
+      </form>
+      <p className="mt-2 text-[12px] text-muted">Keeps the existing Gmail connection, so nobody has to sign in to Google again.</p>
+    </details>
   );
 }

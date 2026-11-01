@@ -154,3 +154,49 @@ export async function setMailboxPaused(mailboxId: string, paused: boolean): Prom
     revalidatePath('/settings');
   });
 }
+
+/**
+ * Key rotation without reconnecting Gmail: the dashboard still holds the OLD key, so it can open each
+ * saved Gmail connection and lock it again with the NEW key the worker uses. The token is never shown.
+ * Afterwards, set TOKEN_ENCRYPTION_KEY in Vercel to the same new key and redeploy.
+ */
+export async function relockGmailConnections(newKeyB64: string): Promise<ActionResult<{ updated: number; alreadyNew: number }>> {
+  return run(async () => {
+    await assertUser(true);
+    const { decryptSecret, encryptSecret } = await import('@grc/core/crypto');
+    const { env } = await import('@/lib/env');
+    const { createAdmin } = await import('@/lib/supabase/admin');
+    const newKey = newKeyB64.trim();
+    if (Buffer.from(newKey, 'base64').length !== 32) throw new Error('That isn’t a valid key: it should be the 44-character value from the worker’s settings.');
+    const oldKey = env.tokenKey();
+    if (oldKey === newKey) throw new Error('The dashboard already uses this key. Nothing to do.');
+
+    const admin = createAdmin();
+    const { data, error } = await admin.from('mailbox').select('id, email, refresh_token_enc').not('refresh_token_enc', 'is', null);
+    if (error) throw new Error(error.message);
+    let updated = 0;
+    let alreadyNew = 0;
+    for (const mb of (data ?? []) as { id: string; email: string; refresh_token_enc: string }[]) {
+      let plain: string;
+      try {
+        plain = decryptSecret(mb.refresh_token_enc, oldKey);
+      } catch {
+        try {
+          decryptSecret(mb.refresh_token_enc, newKey);
+          alreadyNew++;
+          continue;
+        } catch {
+          throw new Error(`Can’t open ${mb.email}’s connection with either key. Only then would Gmail need reconnecting.`);
+        }
+      }
+      const { error: upErr } = await admin
+        .from('mailbox')
+        .update({ refresh_token_enc: encryptSecret(plain, newKey), last_error: null })
+        .eq('id', mb.id);
+      if (upErr) throw new Error(upErr.message);
+      updated++;
+    }
+    revalidatePath('/settings');
+    return { updated, alreadyNew };
+  });
+}
