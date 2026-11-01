@@ -12,7 +12,7 @@ export function shortDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }), timeZone: iso.length === 10 ? 'UTC' : 'Asia/Kolkata' });
 }
 
-const pill = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12px] font-medium';
+const pill = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12.5px] font-medium';
 
 const TYPE: Record<string, { label: string; cls: string }> = {
   development: { label: 'Development', cls: 'bg-indigo-soft text-indigo' },
@@ -40,16 +40,16 @@ export function ReplyCell({ state, waitingOn, dueAt }: { state: string | null; w
     );
   }
   if (state === 'possibly_replied') return <span className={cx(pill, 'bg-mustard-soft text-mustard')}>Maybe replied</span>;
-  if (state === 'handled_offline') return <span className={cx(pill, 'bg-teal-soft text-teal')}>Done on phone</span>;
+  if (state === 'handled_offline') return <span className={cx(pill, 'bg-green-soft text-green')}><Dot className="bg-green" />Done on phone</span>;
   if (waitingOn === 'customer') return <span className={cx(pill, 'bg-slate-soft text-muted')}>Waiting for customer</span>;
-  if (state === 'replied') return <span className={cx(pill, 'bg-teal-soft text-teal')}><Dot className="bg-teal" />Replied</span>;
+  if (state === 'replied') return <span className={cx(pill, 'bg-green-soft text-green')}><Dot className="bg-green" />Replied</span>;
   return null;
 }
 
 export function BulkStatusText({ status }: { status: string | null }) {
   const s = BULK_STATUSES.find((x) => x.key === status);
   if (!s) return null;
-  const tone = status === 'completed' ? 'bg-teal-soft text-teal' : status === 'cancelled' || status === 'on_hold' ? 'bg-slate-soft text-muted' : 'bg-indigo-soft text-indigo';
+  const tone = status === 'completed' ? 'bg-green-soft text-green' : status === 'cancelled' || status === 'on_hold' ? 'bg-slate-soft text-muted' : 'bg-indigo-soft text-indigo';
   return <span className={cx(pill, tone)}>{s.label}</span>;
 }
 
@@ -146,7 +146,7 @@ export function SearchBox(props: React.InputHTMLAttributes<HTMLInputElement>) {
       <input
         type="search"
         {...props}
-        className={cx('h-9 w-72 max-w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-[14px] outline-none placeholder:text-faint focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
+        className={cx('h-9 w-72 max-w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-[14px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
       />
     </label>
   );
@@ -160,7 +160,7 @@ export function ToggleChip({ on, onChange, children, tone = 'indigo' }: { on: bo
       aria-pressed={on}
       onClick={() => onChange(!on)}
       className={cx(
-        'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[13.5px] font-medium transition-colors',
+        'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[14px] font-medium transition-colors duration-200',
         on ? (tone === 'red' ? 'border-red/30 bg-red-soft text-red' : 'border-indigo/30 bg-indigo-soft text-indigo') : 'border-line bg-surface text-ink-2 hover:bg-slate-soft',
       )}
     >

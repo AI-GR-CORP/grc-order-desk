@@ -53,43 +53,74 @@ export interface SheetColumn {
   bulkField?: string;
   kind?: 'text' | 'longtext' | 'date' | 'select';
   options?: string[];
+  /** Shown only in the details panel unless switched on under Columns. */
   extra?: boolean;
+  sortable?: boolean;
 }
 
 /**
- * GRC's own columns, in the order and spelling of the "NEW INQUIRY" tab, then four added ones.
+ * GRC's columns (names from the "NEW INQUIRY" tab) plus Type / Reply / Last email.
  * `key` matches the column-label keys in Settings, so renamed columns keep working.
+ * Inquiry is the main column: it also shows brand and merchant underneath and opens the details panel.
  */
 export const SHEET_COLUMNS: SheetColumn[] = [
-  { key: 'merchant_name', label: 'merchant', width: 140, devField: 'merchant_name', kind: 'text' },
-  { key: 'brand', label: 'brand', width: 100, devField: 'brand', bulkField: 'brand', kind: 'text' },
-  { key: 'inquiry', label: 'Inquiry', width: 270, devField: 'inquiry', bulkField: 'description', kind: 'longtext' },
-  { key: 'sample_collected', label: 'sample collected', width: 140, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
-  { key: 'picture', label: 'picture', width: 84 },
-  { key: 'team_status', label: 'Status of Poornima', width: 170, devField: 'team_status', kind: 'longtext' },
-  { key: 'brand_status', label: 'Status of brand', width: 140, devField: 'brand_status', kind: 'longtext' },
-  { key: 'owner_remark', label: 'Yash remark', width: 170, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },
-  // Added columns (Type is placed next to City on screen; see WorkSheet)
-  { key: 'type', label: 'Type', width: 100 },
-  { key: 'reply', label: 'Reply', width: 124 },
-  { key: 'last_email', label: 'Last email', width: 88 },
-  { key: 'email', label: 'Email', width: 92 },
-  // Shown with "More columns"
-  { key: 'enquiry_date', label: 'Enquiry date', width: 100, devField: 'enquiry_date', kind: 'date', extra: true },
-  { key: 'product_code', label: 'Product code', width: 120, devField: 'product_code', bulkField: 'product_code', kind: 'text', extra: true },
-  { key: 'colours', label: 'Colours', width: 120, devField: 'colours', kind: 'text', extra: true },
-  { key: 'grc_rate', label: 'GRC rate', width: 110, devField: 'grc_rate', kind: 'text', extra: true },
-  { key: 'sample_dispatch_date', label: 'Sample sent', width: 100, devField: 'sample_dispatch_date', kind: 'date', extra: true },
-  { key: 'awb', label: 'AWB', width: 120, devField: 'awb', kind: 'text', extra: true },
-  { key: 'edd', label: 'EDD', width: 100, devField: 'edd', kind: 'date', extra: true },
-  { key: 'next_action', label: 'Work to be done', width: 180, devField: 'next_action', bulkField: 'next_action', kind: 'longtext', extra: true },
+  { key: 'inquiry', label: 'Inquiry', width: 340, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
+  { key: 'type', label: 'Type', width: 124 },
+  { key: 'reply', label: 'Reply', width: 152, sortable: true },
+  { key: 'merchant_name', label: 'Merchant', width: 140, devField: 'merchant_name', kind: 'text', sortable: true },
+  { key: 'brand', label: 'Brand', width: 120, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
+  { key: 'sample_collected', label: 'Sample collected', width: 136, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
+  { key: 'picture', label: 'Picture', width: 92 },
+  { key: 'team_status', label: 'Status of Poornima', width: 196, devField: 'team_status', kind: 'longtext' },
+  { key: 'brand_status', label: 'Status of brand', width: 168, devField: 'brand_status', kind: 'longtext' },
+  { key: 'owner_remark', label: 'Yash remark', width: 188, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },
+  { key: 'last_email', label: 'Last email', width: 112, sortable: true },
+  // More details (details panel; can be added as columns)
+  { key: 'enquiry_date', label: 'Enquiry date', width: 116, devField: 'enquiry_date', kind: 'date', extra: true },
+  { key: 'product_code', label: 'Product code', width: 130, devField: 'product_code', bulkField: 'product_code', kind: 'text', extra: true },
+  { key: 'colours', label: 'Colours', width: 130, devField: 'colours', kind: 'text', extra: true },
+  { key: 'grc_rate', label: 'GRC rate', width: 120, devField: 'grc_rate', kind: 'text', extra: true },
+  { key: 'sample_dispatch_date', label: 'Sample sent', width: 116, devField: 'sample_dispatch_date', kind: 'date', extra: true },
+  { key: 'awb', label: 'AWB', width: 130, devField: 'awb', kind: 'text', extra: true },
+  { key: 'edd', label: 'EDD', width: 110, devField: 'edd', kind: 'date', extra: true },
+  { key: 'next_action', label: 'Work to be done', width: 190, devField: 'next_action', bulkField: 'next_action', kind: 'longtext', extra: true },
 ];
+
+export type GridMode = 'development' | 'client' | 'approvals';
+
+/** What each screen shows before anyone changes the Columns menu. */
+export const DEFAULT_COLUMNS: Record<GridMode, string[]> = {
+  development: ['inquiry', 'reply', 'sample_collected', 'picture', 'team_status', 'brand_status', 'owner_remark', 'last_email'],
+  client: ['inquiry', 'type', 'reply', 'sample_collected', 'picture', 'team_status', 'owner_remark', 'last_email'],
+  approvals: ['inquiry', 'type', 'reply', 'picture', 'last_email'],
+};
 
 export const COMPANY_LABEL = 'Company name';
 export const CITY_LABEL = 'City';
 
 export function label(col: SheetColumn, overrides: Record<string, string>): string {
   return overrides[col.key] ?? col.label;
+}
+
+/** "Dubai, Export", or just "Tirupur" when city and region are the same. */
+export function placeOf(city: string | null | undefined, region: string | null | undefined): string {
+  const parts = [city, region].filter(Boolean) as string[];
+  return [...new Set(parts.map((p) => p.trim()))].filter((p, i, a) => a.findIndex((x) => x.toLowerCase() === p.toLowerCase()) === i).join(', ');
+}
+
+/** The value behind a column for a row (merchant is stored as `merchant`). */
+export function cellValue(r: SheetRow, key: string): string | null {
+  const v = (r as unknown as Record<string, unknown>)[key === 'merchant_name' ? 'merchant' : key];
+  return v === null || v === undefined ? null : String(v);
+}
+
+const REPLY_RANK: Record<string, number> = { awaiting: 0, possibly_replied: 1 };
+/** Lower = more urgent: late, needs reply, maybe replied, waiting for customer, replied. */
+export function replyRank(r: { reply_state: string | null; waiting_on?: string | null; reply_due_at?: string | null }): number {
+  if (r.reply_state === 'awaiting') return r.reply_due_at && new Date(r.reply_due_at).getTime() < Date.now() ? -1 : 0;
+  if (r.reply_state && r.reply_state in REPLY_RANK) return REPLY_RANK[r.reply_state]!;
+  if (r.waiting_on === 'customer') return 3;
+  return r.reply_state === 'replied' ? 4 : 5;
 }
 
 export interface SheetGroup<T> {

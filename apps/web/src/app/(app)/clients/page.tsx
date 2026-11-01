@@ -62,7 +62,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             type="search"
             placeholder="Find a client"
             aria-label="Find a client"
-            className="h-9 w-72 max-w-full rounded-lg border border-line bg-surface px-3 text-[14px] outline-none placeholder:text-faint focus:border-indigo focus:ring-3 focus:ring-indigo/15"
+            className="h-9 w-72 max-w-full rounded-lg border border-line bg-surface px-3 text-[14px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15"
           />
           <span className="ml-auto text-[13px] text-muted">{rows.length} clients</span>
         </form>
@@ -73,31 +73,43 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             <table className="sheet">
               <thead>
                 <tr>
-                  <th className="rn" aria-label="Row" />
-                  <th className="co">{COMPANY_LABEL}</th>
-                  <th style={{ minWidth: 110 }}>City</th>
-                  <th style={{ minWidth: 110 }}>Region</th>
-                  <th className="center" style={{ minWidth: 110 }}>Development</th>
-                  <th className="center" style={{ minWidth: 90 }}>Bulk</th>
-                  <th className="center" style={{ minWidth: 120 }}>Reply needed</th>
-                  <th className="center" style={{ minWidth: 120 }}>Conversations</th>
-                  <th className="center" style={{ minWidth: 96 }}>People</th>
-                  <th style={{ minWidth: 100 }}>Last email</th>
+                  <th className="primary" style={{ width: 280, minWidth: 280 }}>{COMPANY_LABEL}</th>
+                  <th style={{ minWidth: 130 }}>City</th>
+                  <th style={{ minWidth: 120 }}>Region</th>
+                  <th className="center" style={{ minWidth: 130 }}>Reply needed</th>
+                  <th className="center" style={{ minWidth: 130 }}>Development</th>
+                  <th className="center" style={{ minWidth: 100 }}>Bulk</th>
+                  <th className="center" style={{ minWidth: 140 }}>Conversations</th>
+                  <th style={{ minWidth: 120 }}>Last email</th>
+                  <th className="act" style={{ width: 96, minWidth: 96 }}><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.id} className="group-last">
-                    <td className={cx('rn', r.awaiting_reply > 0 && 'alert')}>{i + 1}</td>
-                    <td className="co !pt-[11px] !align-middle"><Link href={`/clients/${r.id}`} className="font-semibold hover:text-indigo">{r.name}</Link></td>
-                    <td className="text-muted">{r.city ?? ''}</td>
-                    <td className="text-muted">{r.region ?? ''}</td>
-                    <td className="center">{r.open_dev || ''}</td>
-                    <td className="center">{r.open_bulk || ''}</td>
-                    <td className="center">{r.awaiting_reply > 0 && <span className="inline-block min-w-6 rounded-full bg-red-soft px-2 py-[2px] text-[12.5px] font-semibold text-red">{r.awaiting_reply}</span>}</td>
-                    <td className="center">{r.thread_count}</td>
-                    <td className="center">{r.contact_count || ''}</td>
-                    <td className="whitespace-nowrap text-[13px] text-muted">{shortDate(r.last_activity_at)}</td>
+                {rows.map((r) => (
+                  <tr key={r.id} className={cx('row', r.awaiting_reply > 0 && 'waiting')}>
+                    <td className="primary">
+                      <Link href={`/clients/${r.id}`} className="font-semibold text-ink hover:text-indigo">{r.name}</Link>
+                      <div className="text-[13px] text-muted">{r.contact_count} {r.contact_count === 1 ? 'person' : 'people'}</div>
+                    </td>
+                    <td className="text-ink-2">{r.city ?? ''}</td>
+                    <td className="text-ink-2">{r.region ?? ''}</td>
+                    <td className="center">
+                      {r.awaiting_reply > 0 ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-soft px-2.5 py-[3px] text-[12.5px] font-medium text-red">
+                          <span className="size-1.5 rounded-full bg-red" aria-hidden />
+                          {r.awaiting_reply} waiting
+                        </span>
+                      ) : (
+                        <span className="text-muted">None</span>
+                      )}
+                    </td>
+                    <td className="center tabular-nums">{r.open_dev || <span className="text-muted">0</span>}</td>
+                    <td className="center tabular-nums">{r.open_bulk || <span className="text-muted">0</span>}</td>
+                    <td className="center tabular-nums">{r.thread_count}</td>
+                    <td className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(r.last_activity_at)}</td>
+                    <td className="act">
+                      <Link href={`/clients/${r.id}`} className="inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-[13px] font-medium text-ink-2 hover:border-indigo/40 hover:text-indigo">Open</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

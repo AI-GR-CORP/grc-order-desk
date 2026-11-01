@@ -1,37 +1,52 @@
 @import "tailwindcss";
 
 /*
- * Modern data grid. Palette from shade names in GRC's own EPT sheet:
- * Apple Navy (ink), Mood Indigo (actions, development), Real Teal (bulk, done), Haute Red (late).
+ * GRC Order Desk design system (from ui-ux-pro-max: CRM & client management →
+ * flat + Swiss minimalism; professional blue, stage colours, green for done, amber highlights).
+ * Slate neutrals, IBM Plex Sans, contrast ≥ 4.5:1 for all text.
  */
 @theme {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-condensed: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #1b2236;
-  --color-ink-2: #3e4659;
-  --color-ground: #f4f5f8;
+  --color-ink: #0f172a;
+  --color-ink-2: #334155;
+  --color-muted: #475569;
+  --color-faint: #94a3b8;
+  --color-ground: #f8fafc;
   --color-surface: #ffffff;
-  --color-line: #e3e6ec;
-  --color-line-2: #eef0f4;
-  --color-muted: #6b7285;
-  --color-faint: #9aa0ae;
+  --color-line: #e2e8f0;
+  --color-line-2: #f1f5f9;
 
-  --color-indigo: #3446a8;
-  --color-indigo-soft: #eef0fb;
-  --color-go: #3446a8;
-  --color-go-dark: #283784;
-  --color-go-soft: #eef0fb;
-  --color-teal: #0f7a6c;
-  --color-teal-soft: #e3f4f0;
-  --color-red: #c8322f;
-  --color-red-soft: #fdecea;
-  --color-mustard: #a35f00;
-  --color-mustard-soft: #fdf3e1;
-  --color-slate: #7a8194;
-  --color-slate-soft: #f1f2f5;
+  --color-indigo: #1e40af;
+  --color-indigo-soft: #eff6ff;
+  --color-go: #1e40af;
+  --color-go-dark: #1e3a8a;
+  --color-go-soft: #eff6ff;
+  --color-teal: #0f766e;
+  --color-teal-soft: #f0fdfa;
+  --color-green: #15803d;
+  --color-green-soft: #f0fdf4;
+  --color-red: #dc2626;
+  --color-red-soft: #fef2f2;
+  --color-mustard: #b45309;
+  --color-mustard-soft: #fffbeb;
+  --color-slate: #64748b;
+  --color-slate-soft: #f1f5f9;
 
-  --color-head: #f8f9fb;
+  --color-head: #f8fafc;
+
+  --animate-panel-in: panel-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 180ms ease-out;
+}
+
+@keyframes panel-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 html {
@@ -44,13 +59,15 @@ html {
 
 body {
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 :focus-visible {
   outline: 2px solid var(--color-indigo);
   outline-offset: 2px;
 }
+
+button, [role="button"], a, select, summary { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -66,9 +83,9 @@ body {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--color-line);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(27, 34, 54, 0.04);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .sheet-wrap {
@@ -84,77 +101,90 @@ body {
   border-spacing: 0;
   width: max-content;
   min-width: 100%;
-  font-size: 13.5px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--color-ink);
 }
 .sheet thead th {
   position: sticky;
   top: 0;
   z-index: 3;
-  padding: 11px 14px;
+  height: 42px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-head);
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   text-align: left;
   white-space: nowrap;
 }
+.sheet thead th .sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.sheet thead th .sort:hover { color: var(--color-ink); }
 .sheet td {
-  padding: 11px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-line-2);
   background: var(--color-surface);
   vertical-align: middle;
 }
-.sheet tbody tr:hover > td:not(.co):not(.city) { background: #fafbfd; }
-/* a firmer line between one client's rows and the next */
-.sheet tr.group-last > td,
-.sheet td.co,
-.sheet td.city { border-bottom-color: var(--color-line); }
-.sheet tbody tr:last-child > td { border-bottom: 0; }
-
-/* row numbers; a thin red bar when the customer is waiting on GRC */
-.sheet .rn {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  width: 44px;
-  min-width: 44px;
-  padding: 0 4px;
-  color: var(--color-faint);
-  font-size: 12px;
-  text-align: center;
-}
-.sheet thead .rn { z-index: 5; }
-.sheet .rn.alert {
-  color: var(--color-red);
-  font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--color-red);
-}
-
-/* the client's column, merged down its rows and kept in view when scrolling sideways */
-.sheet .co {
-  position: sticky;
-  left: 44px;
-  z-index: 1;
-  min-width: 190px;
-  max-width: 240px;
-  padding-top: 13px;
-  border-right: 1px solid var(--color-line);
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-.sheet thead .co { z-index: 4; padding-top: 11px; }
-.sheet .co.unknown { background: #fffdf5; }
-.sheet .city { color: var(--color-muted); font-size: 13px; vertical-align: top; padding-top: 13px; }
+.sheet tbody tr.row:hover > td { background: #f8fafc; }
+.sheet tbody tr.row.selected > td { background: var(--color-indigo-soft); }
 .sheet .center { text-align: center; }
 .sheet thead th.center { text-align: center; }
+
+/* the main column stays in view when scrolling sideways */
+.sheet .primary {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: inset -1px 0 0 var(--color-line);
+}
+.sheet thead .primary { z-index: 4; }
+/* a red edge when the customer is waiting for GRC (always paired with a "Reply" label) */
+.sheet tr.waiting > td.primary { box-shadow: inset 3px 0 0 var(--color-red), inset -1px 0 0 var(--color-line); }
+
+/* actions stay pinned on the right */
+.sheet .act {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  box-shadow: inset 1px 0 0 var(--color-line);
+}
+.sheet thead .act { z-index: 4; }
+
+/* one header row per client */
+.sheet tr.group > td {
+  padding: 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-ground);
+}
+.sheet tbody tr.group:first-child > td { border-top: 0; }
+.sheet .group-inner {
+  position: sticky;
+  left: 0;
+  display: flex;
+  width: max-content;
+  max-width: min(100vw, 1100px);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+}
+
 .sheet .pic img {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   object-fit: cover;
@@ -165,13 +195,13 @@ body {
 .sheet-tabs button {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 46px;
-  padding: 0 4px;
-  margin-right: 18px;
+  gap: 8px;
+  height: 48px;
+  padding: 0 2px;
+  margin-right: 20px;
   border-bottom: 2px solid transparent;
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -184,12 +214,12 @@ body {
   font-weight: 600;
 }
 .sheet-tabs .count {
-  min-width: 22px;
-  padding: 1px 7px;
+  min-width: 24px;
+  padding: 1px 8px;
   border-radius: 999px;
   background: var(--color-slate-soft);
   color: var(--color-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   text-align: center;
 }
@@ -201,5 +231,17 @@ body {
 
 .sheet-cell {
   font-family: var(--font-sans);
-  font-size: 13.5px;
+  font-size: 14px;
+}
+
+/* loading placeholders */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--color-line-2) 0%, #e9eef5 50%, var(--color-line-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }

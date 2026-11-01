@@ -97,7 +97,7 @@ export function EditableCell({ value, onSave, kind = 'text', options, locked, di
       )}
     >
       {display ?? (shown ? <span className="whitespace-pre-wrap break-words">{shown}</span> : <span className="text-transparent group-hover:text-faint">{placeholder ?? 'Add'}</span>)}
-      {locked && <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-indigo" aria-label="typed by a person" />}
+      {locked && shown && <span className="ml-1.5 inline-block size-1.5 -translate-y-px rounded-full bg-indigo align-middle" aria-label="typed by a person" />}
     </button>
   );
 }

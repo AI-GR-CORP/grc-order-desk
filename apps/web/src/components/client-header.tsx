@@ -5,6 +5,7 @@ import { setClientApproval } from '@/app/actions/approvals';
 import { updateCompany } from '@/app/actions/companies';
 import type { ActionResult } from '@/app/actions/result';
 import { cx } from '@/lib/format';
+import { placeOf } from '@/lib/sheet';
 import { Button, inputClass } from './ui';
 
 /** The client's name in a yellow cell like the sheet, with Rename / City and Approve or Ignore. */
@@ -58,7 +59,7 @@ export function ClientHeader({
       {approval === 'approved' && <span className="rounded-full bg-teal-soft px-2.5 py-[3px] text-[12px] font-medium text-teal">Approved client</span>}
       {approval === 'pending' && <span className="rounded-full bg-mustard-soft px-2.5 py-[3px] text-[12px] font-medium text-mustard">Waiting for approval</span>}
       {approval === 'rejected' && <span className="rounded-full bg-slate-soft px-2.5 py-[3px] text-[12px] font-medium text-muted">Ignored</span>}
-      <span className="text-[14.5px] text-muted">{[city, region].filter(Boolean).join(', ') || 'City not set'}</span>
+      <span className="text-[14.5px] text-muted">{placeOf(city, region) || 'City not set'}</span>
       <button onClick={() => setEditing(true)} className="text-[13.5px] font-medium text-indigo hover:underline">Edit</button>
       {isAdmin && approval !== 'approved' && (
         <span className="ml-auto flex gap-2">

@@ -1,9 +1,10 @@
 'use client';
-import { useState, useTransition, type ReactNode } from 'react';
+import { Fragment, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import type { ThreadBriefRow } from '@grc/core';
 import { addThreadsToClient, approveAsNewClient, ignoreThreads } from '@/app/actions/approvals';
 import type { ActionResult } from '@/app/actions/result';
+import Link from 'next/link';
 import { cx } from '@/lib/format';
 import { EmailLinks, GridCard, ReplyCell, shortDate, TypeChip } from './sheet';
 import { Button, inputClass } from './ui';
@@ -17,7 +18,6 @@ export interface UnmatchedGroup {
 
 /** Conversations from senders the system couldn't tie to a client (usually personal Gmail/Yahoo addresses). */
 export function UnmatchedSheet({ groups, companies, canEdit, tabs, empty }: { groups: UnmatchedGroup[]; companies: { id: string; name: string }[]; canEdit: boolean; tabs: ReactNode; empty: ReactNode }) {
-  let rowNo = 0;
   return (
     <GridCard>
       {tabs}
@@ -31,44 +31,42 @@ export function UnmatchedSheet({ groups, companies, canEdit, tabs, empty }: { gr
           <table className="sheet">
             <thead>
               <tr>
-                <th className="rn" aria-label="Row" />
-                <th className="co" style={{ minWidth: 280 }}>Which client is this?</th>
-                <th style={{ minWidth: 160 }}>Sent by</th>
-                <th style={{ minWidth: 320 }}>Inquiry</th>
-                <th style={{ minWidth: 106 }}>Type</th>
-                <th style={{ minWidth: 132 }}>Reply</th>
-                <th style={{ minWidth: 96 }}>Last email</th>
-                <th style={{ minWidth: 96 }}>Email</th>
+                <th className="primary" style={{ width: 380, minWidth: 380 }}>Inquiry</th>
+                <th style={{ minWidth: 200 }}>Sent by</th>
+                <th style={{ minWidth: 124 }}>Type</th>
+                <th style={{ minWidth: 152 }}>Reply</th>
+                <th style={{ minWidth: 112 }}>Last email</th>
+                <th className="act" style={{ width: 120, minWidth: 120 }}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) =>
-                g.threads.map((t, i) => {
-                  rowNo++;
-                  return (
-                    <tr key={t.id} className={cx(i === g.threads.length - 1 && 'group-last')}>
-                      <td className={cx('rn', t.reply_state === 'awaiting' && 'alert')}>{rowNo}</td>
-                      {i === 0 && (
-                        <td className="co unknown" rowSpan={g.threads.length} style={{ maxWidth: 300 }}>
-                          <GroupActions group={g} companies={companies} canEdit={canEdit} />
-                        </td>
-                      )}
+              {groups.map((g) => (
+                <Fragment key={g.key}>
+                  <tr className="group">
+                    <td colSpan={6}>
+                      <GroupActions group={g} companies={companies} canEdit={canEdit} />
+                    </td>
+                  </tr>
+                  {g.threads.map((t) => (
+                    <tr key={t.id} className={cx('row', t.reply_state === 'awaiting' && 'waiting')}>
+                      <td className="primary" style={{ maxWidth: 380 }}>
+                        <Link href={`/threads/${t.id}`} className="line-clamp-2 font-medium text-ink hover:text-indigo">{t.subject || '(no subject)'}</Link>
+                        {(t.first_reason || t.summary) && <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted">{t.summary ?? t.first_reason}</div>}
+                      </td>
                       <td>
                         <div className="font-medium">{t.first_from_name ?? ''}</div>
-                        <div className="text-[12.5px] text-muted">{t.first_from_email ?? ''}</div>
-                      </td>
-                      <td style={{ maxWidth: 440 }}>
-                        <div className="font-medium">{t.subject || '(no subject)'}</div>
-                        {(t.first_reason || t.summary) && <div className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-muted">{t.summary ?? t.first_reason}</div>}
+                        <div className="text-[13px] text-muted">{t.first_from_email ?? ''}</div>
                       </td>
                       <td><TypeChip kind={t.category} /></td>
                       <td><ReplyCell state={t.reply_state} /></td>
-                      <td className="whitespace-nowrap text-[13px] text-muted">{shortDate(t.last_message_at)}</td>
-                      <td><EmailLinks threadId={t.id} emailCount={t.email_count} gmailThreadId={t.gmail_thread_id} mailboxEmail={t.mailbox_email} /></td>
+                      <td className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(t.last_message_at)}</td>
+                      <td className="act">
+                        <EmailLinks threadId={t.id} emailCount={t.email_count} gmailThreadId={t.gmail_thread_id} mailboxEmail={t.mailbox_email} />
+                      </td>
                     </tr>
-                  );
-                }),
-              )}
+                  ))}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
@@ -88,25 +86,30 @@ function GroupActions({ group, companies, canEdit }: { group: UnmatchedGroup; co
       if (r.ok) toast.success(ok);
       else toast.error(r.error);
     });
-  if (!canEdit) return <span>{group.label}</span>;
+  if (!canEdit)
+    return (
+      <div className="group-inner">
+        <span className="text-[15px] font-semibold">{group.label}</span>
+      </div>
+    );
   return (
-    <div className={cx('flex flex-col gap-2 text-left text-[13px] font-normal', busy && 'opacity-60')}>
-      <input className={cx(inputClass, 'h-9 font-semibold')} value={name} onChange={(e) => setName(e.target.value)} aria-label="Client name" />
+    <div className={cx('group-inner', busy && 'opacity-60')}>
+      <label className="sr-only" htmlFor={`name-${group.key}`}>Client name</label>
+      <input id={`name-${group.key}`} className={cx(inputClass, 'h-9 w-60 py-0 font-semibold')} value={name} onChange={(e) => setName(e.target.value)} />
       <Button size="sm" variant="primary" disabled={busy || !name.trim()} onClick={() => act(() => approveAsNewClient(ids, name), `${name} approved. Reading their emails now.`)}>
         Approve as a new client
       </Button>
-      <div className="flex gap-1.5">
-        <select className={cx(inputClass, 'h-8 py-0 text-[13px]')} value={existing} onChange={(e) => setExisting(e.target.value)} aria-label="Add to a client you already have">
-          <option value="">or add to a client…</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        {existing && <Button size="sm" disabled={busy} onClick={() => act(() => addThreadsToClient(ids, existing), 'Added to the client')}>Add</Button>}
-      </div>
-      <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => ignoreThreads(ids), 'Marked as not client work')}>
-        Not client work
-      </Button>
+      <span className="text-[13.5px] text-muted">or</span>
+      <label className="sr-only" htmlFor={`add-${group.key}`}>Add to a client you already have</label>
+      <select id={`add-${group.key}`} className={cx(inputClass, 'h-9 w-56 py-0')} value={existing} onChange={(e) => setExisting(e.target.value)}>
+        <option value="">Add to a client…</option>
+        {companies.map((c) => (
+          <option key={c.id} value={c.id}>{c.name}</option>
+        ))}
+      </select>
+      {existing && <Button size="sm" disabled={busy} onClick={() => act(() => addThreadsToClient(ids, existing), 'Added to the client')}>Add</Button>}
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => ignoreThreads(ids), 'Marked as not client work')}>Not client work</Button>
+      <span className="text-[13px] text-muted">{group.threads.length} {group.threads.length === 1 ? 'conversation' : 'conversations'}</span>
     </div>
   );
 }

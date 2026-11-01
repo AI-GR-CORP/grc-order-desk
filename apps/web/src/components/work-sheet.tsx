@@ -1,14 +1,29 @@
 'use client';
 import Link from 'next/link';
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { setClientApproval } from '@/app/actions/approvals';
 import { addDevItem, updateBulkField, updateDevField } from '@/app/actions/items';
 import type { ActionResult } from '@/app/actions/result';
-import { cx } from '@/lib/format';
-import { CITY_LABEL, COMPANY_LABEL, groupByCompany, isWaiting, label, SHEET_COLUMNS, type SheetColumn, type SheetRow } from '@/lib/sheet';
+import { cx, gmailLink } from '@/lib/format';
+import {
+  cellValue,
+  DEFAULT_COLUMNS,
+  groupByCompany,
+  isWaiting,
+  label,
+  placeOf,
+  replyRank,
+  SHEET_COLUMNS,
+  type GridMode,
+  type SheetColumn,
+  type SheetGroup,
+  type SheetRow,
+} from '@/lib/sheet';
 import { EditableCell } from './editable-cell';
-import { BulkStatusText, EmailLinks, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
+import { ariaSort, ColumnsMenu, SortHeader, useColumns, type SortState } from './grid-controls';
+import { RowPanel } from './row-panel';
+import { BulkStatusText, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
 import { Button, inputClass } from './ui';
 
 export interface ApprovalInfo {
@@ -21,7 +36,7 @@ interface Props {
   rows: SheetRow[];
   thumbnails: Record<string, string[]>;
   labels: Record<string, string>;
-  mode: 'development' | 'client' | 'approvals';
+  mode: GridMode;
   approvalTab?: 'pending' | 'approved' | 'rejected';
   approvals?: Record<string, ApprovalInfo>;
   canApprove?: boolean;
@@ -33,24 +48,39 @@ interface Props {
 
 const GROUPS_PER_PAGE = 60;
 
+const titleOf = (r: SheetRow) => (r.source === 'thread' ? r.thread_subject || '(no subject)' : r.inquiry || r.thread_subject || 'Untitled row');
+
+function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
+  const dir = sort.dir === 'asc' ? 1 : -1;
+  if (sort.key === 'reply') return (replyRank(a) - replyRank(b)) * dir;
+  if (sort.key === 'last_email') return ((a.last_at ?? '').localeCompare(b.last_at ?? '')) * dir;
+  const av = sort.key === 'inquiry' ? titleOf(a) : cellValue(a, sort.key);
+  const bv = sort.key === 'inquiry' ? titleOf(b) : cellValue(b, sort.key);
+  if (!av && !bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return av.localeCompare(bv, 'en', { sensitivity: 'base' }) * dir;
+}
+
 /**
- * GRC's sheet: one row per inquiry or conversation, the client's name in a yellow cell
- * merged down its rows, GRC's own column names, plus Type / Reply / Last email / Email.
+ * The main grid. One header row per client with their rows underneath; the Inquiry column stays
+ * in view while scrolling sideways and opens a details panel; Open and Gmail stay pinned on the right.
  */
 export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approvals, canApprove, companies, tabs, note, empty }: Props) {
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
-  const [more, setMore] = useState(false);
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busy, start] = useTransition();
+  const [visible, setVisible] = useColumns(`grc.columns.${mode}.v1`, DEFAULT_COLUMNS[mode]);
 
-  const showCompany = mode !== 'client';
-  // Type sits right after City (first on a client's page). On Development every row is development, so it's left out.
-  const base = SHEET_COLUMNS.filter((c) => (!c.extra || more) && c.key !== 'type');
-  const typeCol = SHEET_COLUMNS.find((c) => c.key === 'type')!;
-  const cols = mode === 'development' ? base : [typeCol, ...base];
+  const showGroups = mode !== 'client';
+  const cols = SHEET_COLUMNS.filter((c) => c.key !== 'inquiry' && visible.includes(c.key));
+  const inquiryCol = SHEET_COLUMNS[0]!;
   const waitingCount = rows.filter(isWaiting).length;
 
   const filtered = useMemo(() => {
@@ -62,7 +92,13 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
         .some((v) => v?.toLowerCase().includes(needle));
     });
   }, [rows, q, onlyWaiting]);
-  const groups = useMemo(() => groupByCompany(filtered), [filtered]);
+
+  const groups = useMemo(() => {
+    const g = groupByCompany(filtered);
+    if (!sort) return g;
+    for (const grp of g) grp.rows.sort((a, b) => compare(sort, a, b));
+    return [...g].sort((a, b) => compare(sort, a.rows[0]!, b.rows[0]!));
+  }, [filtered, sort]);
   const shown = groups.slice(0, limit);
 
   const act = (fn: () => Promise<ActionResult<unknown>>, ok: string, after?: () => void) =>
@@ -75,84 +111,113 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
 
   const pickable = mode === 'approvals' && approvalTab === 'pending' && canApprove;
   const selectedInfo = [...selected].reduce(
-    (acc, id) => {
-      const a = approvals?.[id];
-      return { n: acc.n + (a?.conversations ?? 0), cost: acc.cost + (a?.cost ?? 0) };
-    },
+    (acc, id) => ({ n: acc.n + (approvals?.[id]?.conversations ?? 0), cost: acc.cost + (approvals?.[id]?.cost ?? 0) }),
     { n: 0, cost: 0 },
   );
-
-  let rowNo = 0;
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
+  const openRow = openId ? rows.find((r) => r.row_id === openId) ?? null : null;
+  const closePanel = useCallback(() => setOpenId(null), []);
+  const colSpan = cols.length + 2;
 
   return (
-    <GridCard>
-      {tabs}
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3">
-        <ToggleChip on={onlyWaiting} onChange={setOnlyWaiting} tone="red">
-          Waiting for our reply
-          <span className={cx('rounded-full px-1.5 text-[12px] font-semibold tabular-nums', onlyWaiting ? 'bg-red text-white' : 'bg-red-soft text-red')}>{waitingCount}</span>
-        </ToggleChip>
-        {mode !== 'approvals' && (
-          <ToggleChip on={more} onChange={setMore}>
-            More columns
+    <>
+      <GridCard>
+        {tabs}
+        <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+          <ToggleChip on={onlyWaiting} onChange={setOnlyWaiting} tone="red">
+            Waiting for our reply
+            <span className={cx('rounded-full px-1.5 text-[12.5px] font-semibold tabular-nums', onlyWaiting ? 'bg-red text-white' : 'bg-red-soft text-red')}>{waitingCount}</span>
           </ToggleChip>
-        )}
-        {pickable && groups.length > 1 && (
-          <button className="h-9 px-2 text-[13.5px] font-medium text-indigo hover:underline" onClick={() => setSelected(new Set(groups.map((g) => g.companyId).filter(Boolean) as string[]))}>
-            Select all {groups.length}
-          </button>
-        )}
-        {mode === 'development' && companies && (
-          <Button size="sm" variant="secondary" className="h-9" onClick={() => setAdding((a) => !a)}>
-            <span aria-hidden className="text-[16px] leading-none">+</span> Add a row
-          </Button>
-        )}
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-[13px] text-muted">
-            {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
-            {showCompany && `, ${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`}
-          </span>
-          <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, brand, inquiry" />
+          <ColumnsMenu
+            columns={SHEET_COLUMNS.map((c) => ({ key: c.key, label: label(c, labels), locked: c.key === 'inquiry' }))}
+            visible={['inquiry', ...cols.map((c) => c.key)]}
+            onChange={setVisible}
+            defaults={DEFAULT_COLUMNS[mode]}
+          />
+          {showGroups && groups.length > 1 && (
+            <Button size="sm" variant="ghost" className="h-9" onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)))}>
+              {allCollapsed ? 'Show all rows' : 'Show clients only'}
+            </Button>
+          )}
+          {pickable && groups.length > 1 && (
+            <button type="button" className="h-9 rounded-lg px-2.5 text-[14px] font-medium text-indigo hover:bg-indigo-soft" onClick={() => setSelected(new Set(groups.map((g) => g.companyId).filter(Boolean) as string[]))}>
+              Select all {groups.length}
+            </button>
+          )}
+          {mode === 'development' && companies && (
+            <Button size="sm" variant="secondary" className="h-9" onClick={() => setAdding((a) => !a)}>
+              <span aria-hidden className="text-[16px] leading-none">+</span> Add a row
+            </Button>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-[13.5px] text-muted">
+              {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
+              {showGroups && `, ${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`}
+            </span>
+            <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, brand, inquiry" />
+          </div>
         </div>
-      </div>
 
-      {adding && companies && <AddRow companies={companies} onDone={() => setAdding(false)} />}
-      {note}
+        {adding && companies && <AddRow companies={companies} onDone={() => setAdding(false)} />}
+        {note}
 
-      {groups.length === 0 ? (
-        <div className="flex-1 border-t border-line">{q || onlyWaiting ? <p className="px-5 py-12 text-center text-[14px] text-muted">Nothing matches. Clear the search box or switch off the filter.</p> : empty}</div>
-      ) : (
-        <div className="sheet-wrap min-h-0 flex-1 border-t border-line">
-          <table className="sheet">
-            <thead>
-              <tr>
-                <th className="rn" aria-label="Row" />
-                {showCompany && <th className="co">{COMPANY_LABEL}</th>}
-                {showCompany && <th style={{ minWidth: 90 }}>{CITY_LABEL}</th>}
-                {cols.map((c) => (
-                  <th key={c.key} className={cx(['sample_collected', 'picture'].includes(c.key) && 'center')} style={{ width: c.width, minWidth: c.width, maxWidth: c.width + 40 }}>
-                    {label(c, labels)}
+        {groups.length === 0 ? (
+          <div className="flex-1 border-t border-line">
+            {q || onlyWaiting ? (
+              <div className="px-5 py-14 text-center">
+                <p className="font-medium">Nothing matches</p>
+                <button className="mt-2 text-[14px] font-medium text-indigo hover:underline" onClick={() => { setQ(''); setOnlyWaiting(false); }}>
+                  Clear the search and filters
+                </button>
+              </div>
+            ) : (
+              empty
+            )}
+          </div>
+        ) : (
+          <div className="sheet-wrap min-h-0 flex-1 border-t border-line">
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th className="primary" style={{ width: inquiryCol.width, minWidth: inquiryCol.width }} aria-sort={ariaSort(sort, 'inquiry')}>
+                    <SortHeader label={label(inquiryCol, labels)} colKey="inquiry" sort={sort} onSort={setSort} />
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((g) =>
-                g.rows.map((r, i) => {
-                  rowNo++;
-                  return (
-                    <tr key={r.row_id} className={cx(i === g.rows.length - 1 && 'group-last')}>
-                      <td className={cx('rn', isWaiting(r) && 'alert')} title={isWaiting(r) ? 'Customer is waiting for GRC’s reply' : undefined}>
-                        {rowNo}
-                      </td>
-                      {showCompany && i === 0 && (
-                        <td className={cx('co', !g.companyId && 'unknown')} rowSpan={g.rows.length}>
-                          <CompanyCell
+                  {cols.map((c) => (
+                    <th
+                      key={c.key}
+                      className={cx(['sample_collected', 'picture'].includes(c.key) && 'center')}
+                      style={{ width: c.width, minWidth: c.width, maxWidth: c.width + 40 }}
+                      aria-sort={c.sortable ? ariaSort(sort, c.key) : undefined}
+                    >
+                      {c.sortable ? <SortHeader label={label(c, labels)} colKey={c.key} sort={sort} onSort={setSort} /> : label(c, labels)}
+                    </th>
+                  ))}
+                  <th className="act" style={{ width: 132, minWidth: 132 }}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((g) => (
+                  <Fragment key={g.key}>
+                    {showGroups && (
+                      <tr className="group">
+                        <td colSpan={colSpan}>
+                          <GroupHeader
                             group={g}
                             mode={mode}
                             tab={approvalTab}
                             info={g.companyId ? approvals?.[g.companyId] : undefined}
                             canApprove={Boolean(canApprove)}
+                            collapsed={collapsed.has(g.key)}
+                            onToggle={() =>
+                              setCollapsed((s) => {
+                                const n = new Set(s);
+                                if (n.has(g.key)) n.delete(g.key);
+                                else n.add(g.key);
+                                return n;
+                              })
+                            }
                             selected={g.companyId ? selected.has(g.companyId) : false}
                             onSelect={
                               pickable && g.companyId
@@ -169,136 +234,182 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
                             act={act}
                           />
                         </td>
-                      )}
-                      {showCompany && i === 0 && (
-                        <td className="city" rowSpan={g.rows.length}>
-                          {g.city ?? ''}
-                        </td>
-                      )}
-                      {cols.map((c) => (
-                        <td key={c.key} style={{ maxWidth: c.width + 40 }} className={cx(['sample_collected', 'picture'].includes(c.key) && 'center', c.key === 'picture' && 'pic')}>
-                          <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} />
-                        </td>
+                      </tr>
+                    )}
+                    {!collapsed.has(g.key) &&
+                      g.rows.map((r) => (
+                        <tr key={r.row_id} className={cx('row', isWaiting(r) && 'waiting', openId === r.row_id && 'selected')}>
+                          <td className="primary" style={{ width: inquiryCol.width, minWidth: inquiryCol.width, maxWidth: inquiryCol.width }}>
+                            <PrimaryCell r={r} onOpen={() => setOpenId(r.row_id)} />
+                          </td>
+                          {cols.map((c) => (
+                            <td key={c.key} style={{ maxWidth: c.width + 40 }} className={cx(['sample_collected', 'picture'].includes(c.key) && 'center', c.key === 'picture' && 'pic')}>
+                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} />
+                            </td>
+                          ))}
+                          <td className="act">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setOpenId(r.row_id)}
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 transition-colors duration-200 hover:border-indigo/40 hover:text-indigo"
+                              >
+                                <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                                  <path d="M15 4v16" />
+                                </svg>
+                                Open
+                              </button>
+                              {r.gmail_thread_id && (
+                                <a
+                                  href={gmailLink(r.mailbox_email, r.gmail_thread_id)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label="Open in Gmail"
+                                  title="Open in Gmail to reply"
+                                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-slate-soft hover:text-ink"
+                                >
+                                  <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                                    <path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
+                                  </svg>
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </tr>
-                  );
-                }),
-              )}
-            </tbody>
-          </table>
-          {groups.length > limit && (
-            <div className="px-5 py-4">
-              <Button onClick={() => setLimit((l) => l + GROUPS_PER_PAGE)}>Show {Math.min(GROUPS_PER_PAGE, groups.length - limit)} more clients</Button>
-            </div>
-          )}
-        </div>
-      )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+            {groups.length > limit && (
+              <div className="px-5 py-4">
+                <Button onClick={() => setLimit((l) => l + GROUPS_PER_PAGE)}>Show {Math.min(GROUPS_PER_PAGE, groups.length - limit)} more clients</Button>
+              </div>
+            )}
+          </div>
+        )}
+      </GridCard>
 
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-3 rounded-xl bg-ink px-5 py-3 text-white shadow-[0_12px_32px_rgba(27,34,54,0.28)] lg:ml-[124px]">
+        <div className="fixed bottom-6 left-1/2 z-40 flex w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 animate-fade-in flex-wrap items-center gap-3 rounded-xl bg-ink px-5 py-3 text-white shadow-[0_12px_32px_rgba(15,23,42,0.3)] lg:ml-[124px]">
           <span className="text-[14px]">
             <span className="font-semibold">{selected.size} {selected.size === 1 ? 'client' : 'clients'} selected</span>
-            <span className="text-white/70">, {selectedInfo.n} conversations, about ${selectedInfo.cost.toFixed(2)} to read</span>
+            <span className="text-white/75">, {selectedInfo.n} conversations, about ${selectedInfo.cost.toFixed(2)} to read</span>
           </span>
           <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="ghost" className="text-white/80 hover:bg-white/10 hover:text-white" onClick={() => setSelected(new Set())}>
+            <Button size="sm" variant="ghost" className="text-white/85 hover:bg-white/10 hover:text-white" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
-            <Button size="sm" className="border-white/20 bg-transparent text-white hover:bg-white/10" disabled={busy} onClick={() => act(() => setClientApproval([...selected], 'rejected'), `Ignored ${selected.size}`, () => setSelected(new Set()))}>
+            <Button size="sm" className="border-white/25 bg-transparent text-white hover:bg-white/10" disabled={busy} onClick={() => act(() => setClientApproval([...selected], 'rejected'), `Ignored ${selected.size}`, () => setSelected(new Set()))}>
               Ignore {selected.size}
             </Button>
-            <Button size="sm" variant="primary" className="bg-white text-ink hover:bg-white/90" disabled={busy} onClick={() => act(() => setClientApproval([...selected], 'approved'), `Approved ${selected.size}. Reading their emails now.`, () => setSelected(new Set()))}>
+            <Button size="sm" className="border-transparent bg-white text-ink hover:bg-white/90" disabled={busy} onClick={() => act(() => setClientApproval([...selected], 'approved'), `Approved ${selected.size}. Reading their emails now.`, () => setSelected(new Set()))}>
               Approve {selected.size}
             </Button>
           </div>
         </div>
       )}
-    </GridCard>
+
+      {openRow && (
+        <RowPanel
+          row={openRow}
+          labels={labels}
+          thumbs={openRow.thread_id ? thumbnails[openRow.thread_id] ?? [] : []}
+          onClose={closePanel}
+          approveSlot={
+            canApprove && openRow.company_id && openRow.company_approval === 'pending' ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-mustard/25 bg-mustard-soft px-4 py-3">
+                <span className="flex-1 text-[14px] text-ink-2">{openRow.company_name} is waiting for approval.</span>
+                <Button size="sm" disabled={busy} onClick={() => act(() => setClientApproval([openRow.company_id!], 'rejected'), 'Ignored', closePanel)}>Ignore</Button>
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([openRow.company_id!], 'approved'), 'Approved. Reading their emails now.', closePanel)}>Approve client</Button>
+              </div>
+            ) : null
+          }
+        />
+      )}
+    </>
   );
 }
 
-function CompanyCell({
+function GroupHeader({
   group,
   mode,
   tab,
   info,
   canApprove,
+  collapsed,
+  onToggle,
   selected,
   onSelect,
   busy,
   act,
 }: {
-  group: ReturnType<typeof groupByCompany>[number];
-  mode: Props['mode'];
+  group: SheetGroup<SheetRow>;
+  mode: GridMode;
   tab: Props['approvalTab'];
   info?: ApprovalInfo;
   canApprove: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
   selected: boolean;
   onSelect?: (on: boolean) => void;
   busy: boolean;
   act: (fn: () => Promise<ActionResult<unknown>>, ok: string, after?: () => void) => void;
 }) {
   const id = group.companyId;
-  const name = id ? (
-    <Link href={`/clients/${id}`} className="block text-[14px] font-semibold leading-snug text-ink hover:text-indigo">
-      {group.name}
-    </Link>
-  ) : (
-    <span className="block text-[14px] font-semibold leading-snug text-ink">{group.name}</span>
-  );
-  const meta = (
-    <span className="mt-0.5 block text-[12.5px] text-muted">
-      {group.rows.length} {group.rows.length === 1 ? 'row' : 'rows'}
-      {group.region ? `, ${group.region}` : ''}
-    </span>
-  );
-  if (mode !== 'approvals' || !id)
-    return (
-      <div>
-        {name}
-        {meta}
-      </div>
-    );
-
+  const place = placeOf(group.city, group.region);
   return (
-    <div className="flex flex-col items-start gap-2.5">
-      <div className="flex items-start gap-2.5">
-        {onSelect && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={(e) => onSelect(e.target.checked)}
-            className="mt-0.5 size-4 shrink-0 accent-[#3446a8]"
-            aria-label={`Select ${group.name}`}
-          />
-        )}
-        <div>
-          {name}
-          <span className="mt-0.5 block text-[12.5px] text-muted">
-            {group.rows.length} {group.rows.length === 1 ? 'conversation' : 'conversations'}
-            {info ? `, about $${info.cost.toFixed(2)} to read` : ''}
-          </span>
-        </div>
-      </div>
-      {canApprove && tab === 'pending' && (
+    <div className="group-inner">
+      {onSelect && (
+        <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} className="size-[18px] accent-[#1e40af]" aria-label={`Select ${group.name}`} />
+      )}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? `Show ${group.name}’s rows` : `Hide ${group.name}’s rows`}
+        className="-ml-1 inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-slate-soft hover:text-ink"
+      >
+        <svg viewBox="0 0 24 24" className={cx('size-4 transition-transform duration-200', collapsed && '-rotate-90')} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {id ? (
+        <Link href={`/clients/${id}`} className="text-[15px] font-semibold text-ink hover:text-indigo">
+          {group.name}
+        </Link>
+      ) : (
+        <span className="text-[15px] font-semibold text-ink">{group.name}</span>
+      )}
+      {place && <span className="text-[13.5px] text-muted">{place}</span>}
+      <span className="rounded-full bg-slate-soft px-2 py-[1px] text-[12.5px] font-medium text-muted">
+        {group.rows.length} {mode === 'approvals' ? (group.rows.length === 1 ? 'conversation' : 'conversations') : group.rows.length === 1 ? 'row' : 'rows'}
+      </span>
+      {group.waiting > 0 && (
+        <span className="rounded-full bg-red-soft px-2 py-[1px] text-[12.5px] font-medium text-red">{group.waiting} waiting for reply</span>
+      )}
+      {mode === 'approvals' && id && canApprove && tab === 'pending' && (
         <>
-          <div className="flex gap-1.5 pl-[26px]">
-            <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([id], 'approved'), `${group.name} approved. Reading their emails now.`)}>
+          {info && <span className="text-[13px] text-muted">about ${info.cost.toFixed(2)} to read</span>}
+          <span className="flex gap-1.5">
+            <Button size="xs" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([id], 'approved'), `${group.name} approved. Reading their emails now.`)}>
               Approve
             </Button>
-            <Button size="sm" disabled={busy} onClick={() => act(() => setClientApproval([id], 'rejected'), `${group.name} ignored`)}>
+            <Button size="xs" disabled={busy} onClick={() => act(() => setClientApproval([id], 'rejected'), `${group.name} ignored`)}>
               Ignore
             </Button>
-          </div>
+          </span>
         </>
       )}
-      {canApprove && tab === 'approved' && (
-        <Button size="sm" variant="ghost" className="-ml-2" disabled={busy} onClick={() => act(() => setClientApproval([id], 'pending'), 'Moved back to waiting')}>
+      {mode === 'approvals' && id && canApprove && tab === 'approved' && (
+        <Button size="xs" variant="ghost" disabled={busy} onClick={() => act(() => setClientApproval([id], 'pending'), 'Moved back to waiting')}>
           Move back to waiting
         </Button>
       )}
-      {canApprove && tab === 'rejected' && (
-        <Button size="sm" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([id], 'approved'), `${group.name} approved`)}>
+      {mode === 'approvals' && id && canApprove && tab === 'rejected' && (
+        <Button size="xs" variant="primary" disabled={busy} onClick={() => act(() => setClientApproval([id], 'approved'), `${group.name} approved`)}>
           Approve
         </Button>
       )}
@@ -306,7 +417,29 @@ function CompanyCell({
   );
 }
 
-/** One cell. Items and bulk orders can be typed into; conversations not yet read are read-only. */
+/** The Inquiry column: what it's about, who it's for, and a click opens the details panel. */
+function PrimaryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
+  const meta =
+    r.source === 'thread'
+      ? r.merchant
+        ? `From ${r.merchant}`
+        : null
+      : r.source === 'bulk'
+        ? [r.brand, r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')
+        : [r.brand, r.merchant].filter(Boolean).join(', ');
+  return (
+    <button type="button" onClick={onOpen} className="group/p block w-full text-left">
+      <span className="line-clamp-2 font-medium text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2">
+        {titleOf(r)}
+      </span>
+      {meta && <span className="mt-0.5 block truncate text-[13px] text-muted">{meta}</span>}
+      {r.source === 'thread' && r.summary && <span className="mt-1 line-clamp-2 block text-[13px] leading-snug text-muted">{r.summary}</span>}
+      {r.source === 'thread' && r.company_approval === 'approved' && !r.is_read && <span className="mt-1 block text-[12.5px] font-medium text-indigo">AI is reading this now</span>}
+    </button>
+  );
+}
+
+/** Any other cell. Rows that are items or orders can be typed into; conversations are read-only. */
 function Cell({ col, r, thumbs }: { col: SheetColumn; r: SheetRow; thumbs: string[] }) {
   switch (col.key) {
     case 'picture':
@@ -316,42 +449,27 @@ function Cell({ col, r, thumbs }: { col: SheetColumn; r: SheetRow; thumbs: strin
     case 'reply':
       return <ReplyCell state={r.reply_state} waitingOn={r.waiting_on} dueAt={r.reply_due_at} />;
     case 'last_email':
-      return <span className="whitespace-nowrap text-[13px] text-muted">{shortDate(r.last_at)}</span>;
-    case 'email':
-      return <EmailLinks threadId={r.thread_id} emailCount={r.email_count} gmailThreadId={r.gmail_thread_id} mailboxEmail={r.mailbox_email} />;
+      return <span className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(r.last_at)}</span>;
   }
-
   if (r.source === 'thread') {
     if (col.key === 'merchant_name') return <span>{r.merchant ?? ''}</span>;
-    if (col.key === 'inquiry')
-      return (
-        <div>
-          <div className="font-medium text-ink">{r.thread_subject || '(no subject)'}</div>
-          {r.summary && <div className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-muted">{r.summary}</div>}
-          {r.company_approval === 'approved' && !r.is_read && <div className="mt-1 text-[12px] text-indigo">AI is reading this now</div>}
-        </div>
-      );
-    if (col.key === 'enquiry_date') return <span>{shortDate(r.enquiry_date)}</span>;
+    if (col.key === 'enquiry_date') return <span className="text-muted">{shortDate(r.enquiry_date)}</span>;
     return null;
   }
-
   if (r.source === 'bulk') {
     if (col.key === 'team_status') return <BulkStatusText status={r.stage} />;
     if (!col.bulkField) return null;
-    const value = (r as unknown as Record<string, string | null>)[col.key === 'inquiry' ? 'inquiry' : col.key] ?? null;
     return (
-      <div>
-        <EditableCell value={value} kind={col.kind === 'longtext' ? 'longtext' : 'text'} onSave={(v) => updateBulkField(r.item_id!, col.bulkField!, v)} locked={r.locked_fields.includes(col.bulkField)} />
-        {col.key === 'inquiry' && (r.po_number || r.qty_mtrs) && (
-          <div className="px-1 text-[12.5px] text-muted">{[r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')}</div>
-        )}
-      </div>
+      <EditableCell
+        value={cellValue(r, col.key)}
+        kind={col.kind === 'longtext' ? 'longtext' : 'text'}
+        onSave={(v) => updateBulkField(r.item_id!, col.bulkField!, v)}
+        locked={r.locked_fields.includes(col.bulkField)}
+      />
     );
   }
-
-  // development item
   if (!col.devField) return null;
-  const raw = (r as unknown as Record<string, string | null>)[col.key === 'merchant_name' ? 'merchant' : col.key] ?? null;
+  const raw = cellValue(r, col.key);
   return (
     <EditableCell
       value={raw}
@@ -371,7 +489,7 @@ function AddRow({ companies, onDone }: { companies: { id: string; name: string }
   const [busy, setBusy] = useState(false);
   return (
     <form
-      className="flex flex-wrap items-end gap-2 border-y border-line bg-indigo-soft/50 px-5 py-3"
+      className="flex flex-wrap items-end gap-2 border-y border-line bg-indigo-soft/60 px-5 py-3"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -382,22 +500,25 @@ function AddRow({ companies, onDone }: { companies: { id: string; name: string }
         onDone();
       }}
     >
-      <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={cx(inputClass, 'w-56')} aria-label="Company" required>
-        <option value="">Choose the client</option>
-        {companies.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="brand" className={cx(inputClass, 'w-36')} aria-label="Brand" />
-      <input value={inquiry} onChange={(e) => setInquiry(e.target.value)} placeholder="Inquiry, e.g. 30MM knitted elastic, 4 colours" className={cx(inputClass, 'min-w-72 flex-1')} aria-label="Inquiry" required />
-      <Button type="submit" variant="primary" disabled={busy}>
-        Add row
-      </Button>
-      <Button type="button" variant="ghost" onClick={onDone}>
-        Cancel
-      </Button>
+      <label className="text-[13px] font-medium text-ink-2">
+        Client
+        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={cx(inputClass, 'mt-1 w-56')} required>
+          <option value="">Choose the client</option>
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-[13px] font-medium text-ink-2">
+        Brand
+        <input value={brand} onChange={(e) => setBrand(e.target.value)} className={cx(inputClass, 'mt-1 w-40')} />
+      </label>
+      <label className="min-w-72 flex-1 text-[13px] font-medium text-ink-2">
+        Inquiry
+        <input value={inquiry} onChange={(e) => setInquiry(e.target.value)} placeholder="e.g. 30MM knitted elastic, 4 colours" className={cx(inputClass, 'mt-1')} required />
+      </label>
+      <Button type="submit" variant="primary" disabled={busy}>Add row</Button>
+      <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
     </form>
   );
 }

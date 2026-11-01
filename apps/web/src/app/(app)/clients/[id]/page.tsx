@@ -83,8 +83,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
               <table className="sheet">
                 <thead>
                   <tr>
-                    <th className="rn" aria-label="Row" />
-                    <th style={{ minWidth: 420 }}>Subject</th>
+                    <th className="primary" style={{ width: 420, minWidth: 420 }}>Subject</th>
                     <th style={{ minWidth: 120 }}>Kind</th>
                     <th style={{ minWidth: 130 }}>Reply</th>
                     <th style={{ minWidth: 96 }}>Last email</th>
@@ -92,13 +91,12 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
                   </tr>
                 </thead>
                 <tbody>
-                  {otherRows.map((t, i) => (
-                    <tr key={t.id}>
-                      <td className="rn">{i + 1}</td>
-                      <td><Link href={`/threads/${t.id}`} className="font-medium hover:text-indigo">{t.subject || '(no subject)'}</Link></td>
+                  {otherRows.map((t) => (
+                    <tr key={t.id} className="row">
+                      <td className="primary"><Link href={`/threads/${t.id}`} className="font-medium hover:text-indigo">{t.subject || '(no subject)'}</Link></td>
                       <td className="text-muted">{OTHER[t.category] ?? t.category}</td>
                       <td><ReplyCell state={t.reply_state} waitingOn={t.waiting_on} /></td>
-                      <td className="whitespace-nowrap text-[13px] text-muted">{shortDate(t.last_message_at)}</td>
+                      <td className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(t.last_message_at)}</td>
                       <td><a href={gmailLink(mailboxEmail, t.gmail_thread_id)} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-indigo hover:underline">Open in Gmail</a></td>
                     </tr>
                   ))}
