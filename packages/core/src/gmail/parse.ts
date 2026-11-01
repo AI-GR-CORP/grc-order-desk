@@ -105,3 +105,29 @@ export function isSkippableMessage(labelIds: readonly string[]): boolean {
 export function isBulkMailCategory(labelIds: readonly string[]): boolean {
   return labelIds.some((l) => l === 'CATEGORY_PROMOTIONS' || l === 'CATEGORY_SOCIAL' || l === 'CATEGORY_FORUMS');
 }
+
+/** The message as it was written: its HTML part (or plain text), and its inline images by Content-ID. */
+export function originalBody(msg: GmailMessage): { html: string | null; text: string | null; inline: { cid: string; partId: string }[] } {
+  let html: string | null = null;
+  let text: string | null = null;
+  const inline: { cid: string; partId: string }[] = [];
+  walk(msg.payload ?? {}, (p) => {
+    const mime = (p.mimeType ?? '').toLowerCase();
+    if (!p.body?.attachmentId && p.body?.data && !p.filename) {
+      if (mime === 'text/html' && html === null) html = decodeBody(p.body.data, header(p, 'Content-Type'));
+      else if (mime === 'text/plain' && text === null) text = decodeBody(p.body.data, header(p, 'Content-Type'));
+    }
+    const cid = header(p, 'Content-ID')?.replace(/^<|>$/g, '');
+    if (cid && p.partId && p.body?.attachmentId) inline.push({ cid, partId: p.partId });
+  });
+  return { html, text, inline };
+}
+
+/** Gmail attachment ids change between fetches; the part id doesn't. */
+export function attachmentIdForPart(msg: GmailMessage, partId: string): string | null {
+  let id: string | null = null;
+  walk(msg.payload ?? {}, (p) => {
+    if (p.partId === partId && p.body?.attachmentId) id = p.body.attachmentId;
+  });
+  return id;
+}

@@ -102,7 +102,7 @@ export interface ClassifyRequest {
 }
 
 /** Builds the model call for one conversation, or null if there is nothing to read. */
-export async function buildClassifyCall(sql: Db, settings: AppSettings, profile: string, threadId: string): Promise<ClassifyRequest | null> {
+export async function buildClassifyCall(sql: Db, settings: AppSettings, profile: string, threadId: string, model?: string): Promise<ClassifyRequest | null> {
   const [t] = await sql<{ company_id: string | null; company_name: string | null }[]>`
     select t.company_id, c.name as company_name from email_thread t left join company c on c.id = t.company_id where t.id = ${threadId}`;
   if (!t) return null;
@@ -117,7 +117,7 @@ export async function buildClassifyCall(sql: Db, settings: AppSettings, profile:
     threadId,
     call: {
       purpose: 'classify',
-      model: settings.ai_models.classify,
+      model: model ?? settings.ai_models.classify,
       system: classifySystem({ internalDomains: settings.internal_domains, knowledgeProfile: profile, learning: global }),
       user: classifyUserContent({
         companyName: t.company_name,
@@ -151,7 +151,14 @@ export interface ClassifyOutcome {
  * Writes the AI's answer, unless a person fixed the type/topics (then theirs stays).
  * Flags the row for a person when the AI isn't sure or disagrees with a strong clue.
  */
-export async function applyClassification(sql: Sql, threadId: string, result: ThreadType | null, clues: readonly Clue[], error?: string): Promise<ClassifyOutcome | null> {
+export async function applyClassification(
+  sql: Sql,
+  threadId: string,
+  result: ThreadType | null,
+  clues: readonly Clue[],
+  error?: string,
+  opts: { forceCheck?: boolean } = {},
+): Promise<ClassifyOutcome | null> {
   return sql.begin(async (tx) => {
     const [t] = await tx<{ category: string; category_locked: boolean; topics: string[]; topics_locked: boolean; type_checked_at: Date | null; approval: string | null }[]>`
       select t.category::text as category, t.category_locked, t.topics, t.topics_locked, t.type_checked_at, c.approval
@@ -166,7 +173,7 @@ export async function applyClassification(sql: Sql, threadId: string, result: Th
     const topics = t.topics_locked ? t.topics : [...new Set(result.topics)].sort();
     const confidence = Math.max(0, Math.min(1, Number.isFinite(result.confidence) ? result.confidence : 0));
     const conflicts = t.category_locked && t.topics_locked ? [] : clueConflicts({ isOrder: result.is_order, orderType: result.order_type, topics }, clues);
-    const needsCheck = !t.type_checked_at && (confidence < CHECK_BELOW || conflicts.length > 0);
+    const needsCheck = !t.type_checked_at && (confidence < CHECK_BELOW || conflicts.length > 0 || Boolean(opts.forceCheck));
     const reason = [result.reason.trim(), result.evidence?.trim() ? `Evidence: "${result.evidence.trim().slice(0, 200)}"` : '', conflicts.length ? `Please check: ${conflicts.join('; ')}.` : '']
       .filter(Boolean)
       .join(' ')
@@ -190,7 +197,48 @@ export async function applyClassification(sql: Sql, threadId: string, result: Th
   });
 }
 
-/** Sorts one conversation now (live sync). */
+/** True when an answer shouldn't be trusted without a second look. */
+export function isDoubtful(r: ThreadType, clues: readonly Clue[]): boolean {
+  const confidence = Number.isFinite(r.confidence) ? r.confidence : 0;
+  return confidence < CHECK_BELOW || clueConflicts({ isOrder: r.is_order, orderType: r.order_type, topics: r.topics }, clues).length > 0;
+}
+
+const shortModel = (m: string) => (m.includes('opus') ? 'Opus' : m.includes('sonnet') ? 'Sonnet' : m.includes('haiku') ? 'Haiku' : m);
+
+/**
+ * When the first answer is doubtful, the stronger model reads the conversation again and its
+ * answer is used. If the two disagree on the type, a person is asked to check.
+ */
+export async function secondOpinion(
+  ctx: Ctx,
+  settings: AppSettings,
+  profile: string,
+  threadId: string,
+  first: ThreadType,
+  clues: readonly Clue[],
+): Promise<{ result: ThreadType; forceCheck: boolean }> {
+  const reviewModel = settings.ai_models.classify_review;
+  if (!reviewModel || reviewModel === settings.ai_models.classify || !isDoubtful(first, clues)) return { result: first, forceCheck: false };
+  const req = await buildClassifyCall(ctx.sql, settings, profile, threadId, reviewModel);
+  if (!req) return { result: first, forceCheck: false };
+  try {
+    const r = await getProvider().call(req.call);
+    await recordAiRun(ctx.sql, { purpose: 'classify', model: reviewModel, threadId, usage: r.usage, ok: true });
+    const second = r.data;
+    const disagree = second.is_order !== first.is_order || second.order_type !== first.order_type;
+    const firstSaid = first.is_order ? `${first.order_type}${first.topics.length ? ` + ${first.topics.join(', ')}` : ''}` : 'not an order';
+    return {
+      result: { ...second, reason: `${second.reason} (Checked twice: ${shortModel(reviewModel)} decided${disagree ? `; the first answer was ${firstSaid}` : ', both agree'}.)` },
+      forceCheck: disagree,
+    };
+  } catch (e) {
+    ctx.log.warn({ err: errorMessage(e), threadId }, 'classify second opinion failed');
+    await recordAiRun(ctx.sql, { purpose: 'classify', model: reviewModel, threadId, ok: false, error: errorMessage(e) });
+    return { result: first, forceCheck: false };
+  }
+}
+
+/** Sorts one conversation now (live sync), with a second opinion when the first answer is doubtful. */
 export async function classifyThread(ctx: Ctx, settings: AppSettings, profile: string, threadId: string): Promise<ClassifyOutcome | null> {
   const req = await buildClassifyCall(ctx.sql, settings, profile, threadId);
   if (!req) return null;
@@ -198,7 +246,8 @@ export async function classifyThread(ctx: Ctx, settings: AppSettings, profile: s
   try {
     const r = await getProvider().call(req.call);
     await recordAiRun(ctx.sql, { purpose: 'classify', model: req.call.model, threadId, usage: r.usage, ok: true });
-    return applyClassification(ctx.sql, threadId, r.data, clues);
+    const final = await secondOpinion(ctx, settings, profile, threadId, r.data, clues);
+    return applyClassification(ctx.sql, threadId, final.result, clues, undefined, { forceCheck: final.forceCheck });
   } catch (e) {
     ctx.log.warn({ err: errorMessage(e), threadId }, 'classify failed');
     await recordAiRun(ctx.sql, { purpose: 'classify', model: req.call.model, threadId, ok: false, error: errorMessage(e) });

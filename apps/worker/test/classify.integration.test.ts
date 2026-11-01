@@ -42,6 +42,8 @@ d('conversation sorting (integration)', () => {
   let classification: ThreadType;
   let extraction: ThreadExtraction | null = null;
   let lastClassify: { system: string; user: string } | null = null;
+  let byModel: Record<string, ThreadType> = {};
+  const classifyModels: string[] = [];
   const mods = {} as {
     db: typeof import('../src/db');
     ingest: typeof import('../src/pipeline/ingest');
@@ -83,7 +85,8 @@ d('conversation sorting (integration)', () => {
         }
         if (opts.purpose === 'classify') {
           lastClassify = { system: opts.system, user: opts.user };
-          return { data: classification as never, usage };
+          classifyModels.push(opts.model);
+          return { data: (byModel[opts.model] ?? classification) as never, usage };
         }
         return { data: extraction as never, usage };
       },
@@ -265,5 +268,84 @@ d('conversation sorting (integration)', () => {
     expect(p!.p.done).toBeGreaterThanOrEqual(1);
     const [rj] = await sql`select kind from job where dedupe_key = ${'reprocess:' + lab}`;
     expect(rj!.kind).toBe('reprocess_thread');
+  });
+
+  it('a doubtful answer gets a second opinion from the stronger model before anything is saved', async () => {
+    const settings = await mods.db.getSettings(sql, true);
+    expect(settings.ai_models.classify_review).toBe('claude-opus-5-5');
+    const t1 = await ingestAndTriage(
+      thread('g-unsure', 'Elastic for SS27 boxers', [
+        { from: 'Amila Fernando <amila@triple.holdings>', to: 'yash@grcorporation.co.in', body: 'Please plan 40MM boxer elastic for SS27, details to follow.', mins: 5000 },
+      ]),
+    );
+    // Sonnet unsure, Opus sure and agreeing: used, not flagged.
+    classifyModels.length = 0;
+    byModel = {
+      'claude-sonnet-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'plan 40MM boxer elastic', confidence: 0.6, reason: 'Sounds like a new requirement.' },
+      'claude-opus-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'details to follow', confidence: 0.9, reason: 'A new requirement; no order placed yet.' },
+    };
+    const o1 = await mods.classify.classifyThread(ctx, settings, '', t1);
+    expect(classifyModels).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5']);
+    expect(o1).toMatchObject({ category: 'development', needsCheck: false });
+    const [r1] = await sql`select type_confidence, type_reason from email_thread where id = ${t1}`;
+    expect(r1!.type_confidence).toBeCloseTo(0.9);
+    expect(r1!.type_reason).toContain('Checked twice: Opus decided, both agree');
+
+    // The two disagree on the type: a person checks.
+    const t2 = await ingestAndTriage(
+      thread('g-disagree', 'SS27 plan', [
+        { from: 'Amila Fernando <amila@triple.holdings>', to: 'yash@grcorporation.co.in', body: 'Sharing the SS27 plan quantities, please confirm capacity.', mins: 6000 },
+      ]),
+    );
+    classifyModels.length = 0;
+    byModel = {
+      'claude-sonnet-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'plan', confidence: 0.7, reason: 'A plan, not an order.' },
+      'claude-opus-5-5': { is_order: true, order_type: 'bulk', topics: [], evidence: 'plan quantities, confirm capacity', confidence: 0.85, reason: 'Quantities for production.' },
+    };
+    const o2 = await mods.classify.classifyThread(ctx, settings, '', t2);
+    expect(o2).toMatchObject({ category: 'bulk', needsCheck: true });
+    const [r2] = await sql`select type_reason from email_thread where id = ${t2}`;
+    expect(r2!.type_reason).toContain('the first answer was development');
+
+    // A confident first answer that agrees with the clues is not checked twice.
+    classifyModels.length = 0;
+    byModel = {};
+    await sql`update email_thread set classified_at = null where id = ${primark}`;
+    await sql`update email_thread set category_locked = false, topics_locked = false, type_checked_at = null where id = ${primark}`;
+    classification = { is_order: true, order_type: 'bulk', topics: ['payment_followup'], evidence: 'proceed with bulk production', confidence: 0.97, reason: 'Order placed.' };
+    await mods.classify.classifyThread(ctx, settings, '', primark);
+    expect(classifyModels).toEqual(['claude-sonnet-5-5']);
+  });
+
+  it('Inbox: customer mail is listed, supplier mail goes to Filtered out, and nothing disappears silently', async () => {
+    const supplier = await ingestAndTriage(
+      thread('g-yarn', 'Yarn rates for November', [
+        { from: 'Yarn Mill <sales@yarnmill.in>', to: 'yash@grcorporation.co.in', body: 'Our November rates for polyester yarn.', mins: 7000 },
+      ]),
+    );
+    const unknownCustomer = await ingestAndTriage(
+      thread('g-rohan', 'Requirement of elastic for leggings', [
+        { from: 'Rohan Mehta <rohan.mehta84@gmail.com>', to: 'yash@grcorporation.co.in', body: 'We need 35MM brushed elastic for leggings. Please send samples.', mins: 7100 },
+      ]),
+    );
+    // What triage would say: the supplier isn't a customer; the Gmail sender is.
+    await sql`update email_thread set category = 'other' where id = ${supplier}`;
+    await sql`update email_message set triage = triage || '{"is_customer": false, "category": "vendor"}'::jsonb where thread_id = ${supplier}`;
+    await sql`update email_thread set category = 'other', company_id = null where id = ${unknownCustomer}`;
+    await sql`update email_message set triage = triage || '{"is_customer": true}'::jsonb where thread_id = ${unknownCustomer}`;
+
+    const bucket = async (id: string) =>
+      asStaff(async (tx) => ((await tx`select bucket, unread from v_inbox where thread_id = ${id}`)[0] ?? null) as { bucket: string; unread: boolean } | null);
+    expect(await bucket(primark)).toMatchObject({ bucket: 'customer' });
+    expect(await bucket(supplier)).toMatchObject({ bucket: 'filtered', unread: true });
+    expect(await bucket(unknownCustomer)).toMatchObject({ bucket: 'customer' });
+
+    // Opening it marks it read for that person only.
+    await asStaff((tx) => tx`insert into thread_read (user_id, thread_id) values (${STAFF}, ${supplier}) on conflict (user_id, thread_id) do update set read_at = now()`);
+    expect(await bucket(supplier)).toMatchObject({ unread: false });
+
+    // A person confirms it isn't customer mail: it leaves the safety net.
+    await sql`update email_thread set type_checked_at = now(), category_locked = true where id = ${supplier}`;
+    expect(await bucket(supplier)).toMatchObject({ bucket: 'dismissed' });
   });
 });

@@ -63,6 +63,14 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - Extraction follows the decided type: bulk conversations create bulk orders only, development ones development items only.
 - `pnpm ops reclassify` shows the count and cost; `--apply` starts a re-sort. `pnpm ops check` shows how often the AI was right on rows the team checked.
 
+## Inbox: the owner's goal is that GRC never needs Gmail for customer mail
+
+- `/inbox` lists every conversation with an email from outside GRC, from the `v_inbox` view: bucket `customer` (order conversation, known client, or the AI said the sender is a customer), `filtered` (shown in the "Filtered out" safety-net tab; never hide mail silently), `dismissed` (a person said it isn't customer mail).
+- Unread is per person (`thread_read`); opening a conversation marks it read.
+- Attachments and original emails are fetched live from Gmail by `/api/attachments/[id]` and `/api/messages/[id]/original` (read-only scope; GRC users only; served sandboxed). Keep them locked down: no scripts from emails, ever.
+- Doubtful AI answers (confidence < 0.8 or a clue disagrees) get a second opinion from `ai_models.classify_review` (Opus) before saving; if the two disagree, the row is flagged for a person.
+- `pnpm ops check` shows coverage for the last 7 days (customer / filtered / newsletters / dismissed).
+
 ## Before saying something is done
 `pnpm typecheck && pnpm test`; for UI changes also `pnpm --filter @grc/web build`; for migrations run the integration tests on a local Postgres. Then `pnpm ops deploy` and `pnpm ops check`.
 

@@ -4,9 +4,10 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cx } from '@/lib/format';
 
-type CountKey = 'needsReply' | 'approvals' | 'review';
+type CountKey = 'inbox' | 'needsReply' | 'approvals' | 'review';
 
 const MAIN: { href: string; label: string; icon: ReactNode; count?: CountKey }[] = [
+  { href: '/inbox', label: 'Inbox', icon: <IconInbox />, count: 'inbox' },
   { href: '/', label: 'Reply needed', icon: <IconReply />, count: 'needsReply' },
   { href: '/approvals', label: 'New clients', icon: <IconNewClient />, count: 'approvals' },
   { href: '/orders', label: 'Orders', icon: <IconSheet /> },
@@ -46,7 +47,7 @@ export function NavRail({ counts, email, sync, initialCollapsed = false }: { cou
   const item = (l: (typeof MAIN)[number]) => {
     const n = l.count ? counts[l.count] : 0;
     const on = active(l.href);
-    const badge = l.count === 'needsReply' ? 'bg-red text-white' : l.count === 'approvals' ? 'bg-mustard-soft text-mustard' : 'bg-slate-soft text-ink-2';
+    const badge = l.count === 'needsReply' ? 'bg-red text-white' : l.count === 'inbox' ? 'bg-indigo text-white' : l.count === 'approvals' ? 'bg-mustard-soft text-mustard' : 'bg-slate-soft text-ink-2';
     return (
       <Link
         key={l.href}
@@ -141,6 +142,9 @@ function Svg({ children }: { children: ReactNode }) {
       {children}
     </svg>
   );
+}
+function IconInbox() {
+  return <Svg><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5" /><path d="M5.5 5h13L21 13.5V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5.5Z" /></Svg>;
 }
 function IconReply() {
   return <Svg><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></Svg>;

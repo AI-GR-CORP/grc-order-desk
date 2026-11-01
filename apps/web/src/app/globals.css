@@ -267,3 +267,9 @@ button, [role="button"], a, select, summary { cursor: pointer; }
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }
 }
+
+/* Inbox: an email list that fits the screen (previews wrap instead of widening the table). */
+.inbox-table { width: 100%; min-width: 860px; table-layout: fixed; }
+.inbox-table td { white-space: normal; vertical-align: top; }
+.inbox-table tr.is-unread td { background: #fff; }
+.inbox-table tbody tr:hover td { background: var(--color-indigo-soft); }

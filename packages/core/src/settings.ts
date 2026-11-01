@@ -17,6 +17,8 @@ export const AiModelsSchema = z.object({
   discovery: z.string().default('claude-opus-5-5'),
   /** Decides each conversation's order type (development / bulk) and topics. */
   classify: z.string().default('claude-sonnet-5-5'),
+  /** Second opinion when the first answer is unsure or contradicts a clue ('' turns it off). */
+  classify_review: z.string().default('claude-opus-5-5'),
 });
 
 export const AppSettingsSchema = z.object({

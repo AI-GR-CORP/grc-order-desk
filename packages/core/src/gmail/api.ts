@@ -1,4 +1,4 @@
-import type { GmailHistoryList, GmailProfile, GmailThread, GmailThreadList } from './types';
+import type { GmailMessage, GmailHistoryList, GmailProfile, GmailThread, GmailThreadList } from './types';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/';
 
@@ -74,6 +74,10 @@ export class GmailApi {
       historyTypes: ['messageAdded'],
       maxResults: 500,
     });
+  }
+
+  getMessage(id: string): Promise<GmailMessage> {
+    return this.get(`messages/${encodeURIComponent(id)}`, { format: 'full' });
   }
 
   async getAttachment(messageId: string, attachmentId: string): Promise<Buffer> {

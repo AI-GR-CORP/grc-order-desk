@@ -5,7 +5,7 @@ import { config } from '../config';
 import type { Ctx } from '../context';
 import { getKnowledgeProfile, getSettings } from '../db';
 import { errorMessage, NonRetryableError } from '../errors';
-import { applyClassification, buildClassifyCall, classificationCandidates, classifyThread, resetLessonCache, threadClues, type ClassifyOutcome } from '../pipeline/classify';
+import { applyClassification, buildClassifyCall, classificationCandidates, classifyThread, resetLessonCache, secondOpinion, threadClues, type ClassifyOutcome } from '../pipeline/classify';
 import type { Job } from '../queue';
 import { mapLimit, sleep } from '../util';
 
@@ -66,8 +66,10 @@ export async function runClassifyBackfill(ctx: Ctx, job: Job): Promise<void> {
       if (!item.ok || !item.text) continue;
       try {
         const data = parseStructured(item.text, ThreadTypeSchema, item.usage);
-        const o = await applyClassification(sql, item.customId, data, await threadClues(sql, item.customId));
         await recordAiRun(sql, { purpose: 'classify', model, threadId: item.customId, batchId, usage: item.usage, ok: true });
+        const clues = await threadClues(sql, item.customId);
+        const final = await secondOpinion(ctx, settings, profile, item.customId, data, clues);
+        const o = await applyClassification(sql, item.customId, final.result, clues, undefined, { forceCheck: final.forceCheck });
         if (o) outcomes.push({ id: item.customId, o });
         done.add(item.customId);
       } catch (e) {

@@ -478,6 +478,28 @@ async function cmdCheck({ quick = false } = {}) {
       const right = ty.checked - ty.corrected;
       ok(`Checked by your team: ${ty.checked}. AI was right on ${right} (${Math.round((right / ty.checked) * 100)}%), corrected ${ty.corrected}`);
     }
+    // Coverage: every email from outside GRC in the last 7 days, by where it shows in the dashboard.
+    const hasInbox = (await sql`select to_regclass('public.v_inbox') is not null as ok`)[0].ok;
+    if (hasInbox) {
+      const cov = await sql`
+        select b.bucket, b.is_noise, count(*)::int as emails
+        from email_message m
+        join (select t.id,
+                     case when c.approval = 'rejected' or (t.category in ('other','ignored') and t.type_checked_at is not null) then 'dismissed'
+                          when t.category in ('development','bulk','mixed','payment') or c.approval in ('approved','pending')
+                            or (t.category <> 'ignored' and exists (select 1 from email_message m2 where m2.thread_id = t.id and m2.direction = 'inbound' and (m2.triage->>'is_customer') = 'true'))
+                          then 'customer' else 'filtered' end as bucket,
+                     (t.category = 'ignored') as is_noise
+              from email_thread t left join company c on c.id = t.company_id) b on b.id = m.thread_id
+        where m.direction = 'inbound' and m.sent_at > now() - interval '7 days'
+        group by 1, 2`;
+      const n = (bucket, noise) => cov.filter((r) => r.bucket === bucket && (noise === undefined || r.is_noise === noise)).reduce((a, r) => a + r.emails, 0);
+      const total = cov.reduce((a, r) => a + r.emails, 0);
+      if (total) {
+        ok(`Last 7 days: ${total} emails from outside GRC. ${n('customer')} customer mail on the dashboard, ${n('filtered', false)} filtered out, ${n('filtered', true)} newsletters/couriers, ${n('dismissed')} dismissed by your team`);
+        if (n('filtered', false)) warn(`${n('filtered', false)} emails are in Inbox → Filtered out. Glance through them so no customer mail is missed.`);
+      }
+    }
     const [cls] = await sql`select backfill_progress->'classify' as p from mailbox where backfill_progress ? 'classify' limit 1`;
     if (cls?.p && !cls.p.finishedAt) {
       const b = cls.p.batch;
@@ -693,7 +715,10 @@ async function cmdReclassify(apply) {
     const avgChars = n.todo ? Number(n.chars) / n.todo : 0;
     const inTok = todo * (4500 + avgChars / 3.5);
     const outTok = todo * 1500; // thinking + answer
-    const usd = ((inTok * price[0] + outTok * price[1]) / 1e6) * (todo >= 50 ? 0.5 : 1);
+    // About 1 in 5 answers gets a second opinion from the stronger model (not batched).
+    const review = models?.classify_review ?? 'claude-opus-5-5';
+    const rprice = { 'claude-sonnet-5-5': [2, 10], 'claude-opus-5-5': [4, 20] }[review] ?? [0, 0];
+    const usd = ((inTok * price[0] + outTok * price[1]) / 1e6) * (todo >= 50 ? 0.5 : 1) + (review && review !== model ? ((inTok * rprice[0] + outTok * rprice[1]) / 1e6) * 0.2 : 0);
     section('Re-sort conversations: Development / Bulk + topics');
     ok(`${n.total} order-like conversations in ${mb.email}`);
     ok(`${n.kept} were checked by your team and stay exactly as they are`);

@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import type { MessageRow, ThreadRow } from '@grc/core';
 import { ReplyBadge, StageChip, BulkStatusChip } from '@/components/stage';
 import { ThreadActions } from '@/components/thread-actions';
+import { Attachments, OriginalEmail, type FileRef } from '@/components/email-extras';
+import { MarkRead } from '@/components/mark-read';
 import { PageHeader, Panel } from '@/components/ui';
 import { cx, duration, fmtDateTime, gmailLink } from '@/lib/format';
 import { fetchAll, getThumbnails } from '@/lib/data';
@@ -15,31 +17,34 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
   if (!data) notFound();
   const t = data as ThreadRow;
 
-  const [messages, mailbox, company, links, companies, attachments] = await Promise.all([
+  const [messages, mailbox, company, links, companies] = await Promise.all([
     supabase.from('email_message').select('*').eq('thread_id', id).order('sent_at'),
     supabase.from('mailbox').select('email').eq('id', t.mailbox_id).maybeSingle(),
     t.company_id ? supabase.from('company').select('id, name').eq('id', t.company_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from('item_thread').select('dev_item_id, bulk_order_id').eq('thread_id', id),
     fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).neq('approval', 'rejected').order('name').range(a, b)),
-    supabase.from('attachment').select('message_id, filename, kind, size_bytes, inline').neq('kind', null),
   ]);
   const msgs = (messages.data ?? []) as MessageRow[];
   const devIds = (links.data ?? []).map((l) => l.dev_item_id).filter(Boolean) as string[];
   const bulkIds = (links.data ?? []).map((l) => l.bulk_order_id).filter(Boolean) as string[];
-  const [dev, bulk, thumbs] = await Promise.all([
+  const [dev, bulk, thumbs, attachments] = await Promise.all([
     devIds.length ? supabase.from('dev_item').select('id, brand, inquiry, product_code, stage, team_status').in('id', devIds) : Promise.resolve({ data: [] }),
     bulkIds.length ? supabase.from('bulk_order').select('id, brand, product_code, po_number, status').in('id', bulkIds) : Promise.resolve({ data: [] }),
     getThumbnails([id]),
+    msgs.length
+      ? supabase.from('attachment').select('id, message_id, filename, mime_type, size_bytes, inline').in('message_id', msgs.map((m) => m.id)).order('filename')
+      : Promise.resolve({ data: [] }),
   ]);
-  const msgIds = new Set(msgs.map((m) => m.id));
-  const files = new Map<string, string[]>();
-  for (const a of (attachments.data ?? []) as { message_id: string; filename: string; inline: boolean; size_bytes: number }[]) {
-    if (!msgIds.has(a.message_id) || (a.inline && (a.size_bytes ?? 0) < 15000)) continue;
-    files.set(a.message_id, [...(files.get(a.message_id) ?? []), a.filename]);
+  // Small inline pictures are logos and signatures: shown in the original email, not as files.
+  const files = new Map<string, FileRef[]>();
+  for (const a of (attachments.data ?? []) as (FileRef & { message_id: string; inline: boolean })[]) {
+    if (a.inline && (a.size_bytes ?? 0) < 15000) continue;
+    files.set(a.message_id, [...(files.get(a.message_id) ?? []), a]);
   }
 
   return (
     <>
+      <MarkRead threadId={id} />
       <PageHeader
         title={t.subject ?? '(no subject)'}
         detail={
@@ -77,8 +82,9 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
                     </span>
                     <time className="text-muted">{fmtDateTime(m.sent_at)}</time>
                   </div>
-                  <p className="mt-1.5 max-w-3xl whitespace-pre-wrap break-words text-[13.5px]">{m.body_clean || m.snippet}</p>
-                  {files.get(m.id) && <p className="mt-1.5 text-[12px] text-muted">Attached: {files.get(m.id)!.join(', ')}</p>}
+                  <p className="mt-1.5 max-w-3xl whitespace-pre-wrap break-words text-[14px] leading-relaxed">{m.body_clean || m.snippet}</p>
+                  <Attachments files={files.get(m.id) ?? []} />
+                  <OriginalEmail messageId={m.id} />
                 </li>
               ))}
             </ol>
