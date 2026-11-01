@@ -1,21 +1,18 @@
 'use client';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { THREAD_CATEGORIES } from '@grc/core';
 import type { ActionResult } from '@/app/actions/result';
-import { markHandledOffline, markThreadReviewed, reprocessThread, setThreadCategory, setThreadCompany, snoozeThread } from '@/app/actions/threads';
+import { markHandledOffline, markThreadReviewed, reprocessThread, setThreadCategory, setThreadCompany, setThreadType, snoozeThread } from '@/app/actions/threads';
 import { cx } from '@/lib/format';
 import { Button, inputClass } from './ui';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  unclassified: 'Not sorted yet',
-  development: 'Development',
-  bulk: 'Bulk order',
-  mixed: 'Development + bulk',
-  payment: 'Payment (not tracked)',
-  other: 'Other (not tracked)',
-  ignored: 'Ignore',
-};
+/** Orders are Development or Bulk; anything else is not order work. */
+const TYPE_OPTIONS = [
+  { value: 'development', label: 'Development' },
+  { value: 'bulk', label: 'Bulk' },
+  { value: 'other', label: 'Not an order' },
+  { value: 'ignored', label: 'Ignore' },
+];
 
 export function ThreadActions({
   threadId,
@@ -23,9 +20,11 @@ export function ThreadActions({
   companyId,
   companies,
   needsReview,
+  topics = [],
 }: {
   threadId: string;
   category: string;
+  topics?: string[];
   companyId: string | null;
   companies: { id: string; name: string }[];
   needsReview: boolean;
@@ -57,10 +56,15 @@ export function ThreadActions({
           <span className="font-medium">Type of work</span>
           <select
             className={cx(inputClass, 'mt-1')}
-            defaultValue={category}
-            onChange={(e) => run(() => setThreadCategory(threadId, e.target.value), 'Type updated')}
+            defaultValue={TYPE_OPTIONS.some((o) => o.value === category) ? category : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'development' || v === 'bulk') run(() => setThreadType(threadId, v, topics), 'Saved. The AI will remember this.');
+              else if (v) run(() => setThreadCategory(threadId, v), 'Saved. The AI will remember this.');
+            }}
           >
-            {THREAD_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+            {!TYPE_OPTIONS.some((o) => o.value === category) && <option value="">Choose…</option>}
+            {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </label>
       </div>

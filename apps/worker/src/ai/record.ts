@@ -4,7 +4,7 @@ import { estimateCostUsd, type UsageInfo } from './pricing';
 export async function recordAiRun(
   sql: Db,
   r: {
-    purpose: 'triage' | 'extract' | 'discovery' | 'eval';
+    purpose: 'triage' | 'extract' | 'discovery' | 'eval' | 'classify';
     model: string;
     threadId?: string | null;
     batchId?: string | null;

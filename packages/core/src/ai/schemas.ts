@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BULK_STATUS_KEYS, DEV_STAGE_KEYS, SAMPLE_COLLECTED, TRIAGE_CATEGORIES, WAITING_ON } from '../constants';
+import { BULK_STATUS_KEYS, DEV_STAGE_KEYS, ORDER_TOPIC_KEYS, ORDER_TYPES, SAMPLE_COLLECTED, TRIAGE_CATEGORIES, WAITING_ON } from '../constants';
 
 /**
  * Structured-output schemas. Kept JSON-Schema friendly (no transforms, no numeric bounds):
@@ -101,3 +101,14 @@ export const DirectorySchema = z.object({
   glossary: text.describe('Markdown notes: product codes, abbreviations, brands, how GRC works'),
 });
 export type Directory = z.infer<typeof DirectorySchema>;
+
+/** Conversation-level sorting: one order type, plus any topics. */
+export const ThreadTypeSchema = z.object({
+  is_order: z.boolean().describe('true when the conversation is about GRC selling to this customer: an inquiry, sample, order, its approvals, payment or a complaint'),
+  order_type: z.enum(ORDER_TYPES).describe('Exactly one. Required even when is_order is false (give the closer fit).'),
+  topics: z.array(z.enum(ORDER_TOPIC_KEYS)).describe('Every topic that applies; empty if none'),
+  evidence: text.describe('The words from the emails that decided it, quoted briefly (max 30 words)'),
+  confidence: z.number().describe('0 to 1: how sure you are of order_type and topics'),
+  reason: text.describe('One short sentence a merchandiser would understand'),
+});
+export type ThreadType = z.infer<typeof ThreadTypeSchema>;

@@ -11,6 +11,7 @@
  *   pnpm ops deploy [--fast]      typecheck + tests + build, git push, wait until Vercel is live
  *   pnpm ops redeploy             redeploy the current code (after changing Vercel env vars)
  *   pnpm ops worker               start the worker (keeps the Mac awake)
+ *   pnpm ops reclassify [--apply]  re-sort conversations: Development / Bulk + topics (shows the cost first)
  *
  * Secrets live ONLY in .env.local at the repo root (gitignored, mode 600).
  * This script never prints a secret value: only names, lengths and check results.
@@ -461,6 +462,30 @@ async function cmdCheck({ quick = false } = {}) {
     const [nr] = await sql`select count(*)::int as n from v_needs_reply where reply_state = 'awaiting'`;
     ok(`${nr.n} conversations waiting for a reply`);
 
+    // Order types: how many, how many still need a person's check, and how often the AI was right.
+    const [ty] = await sql`
+      select count(*) filter (where category = 'development')::int as dev,
+             count(*) filter (where category = 'bulk')::int as bulk,
+             count(*) filter (where category = 'mixed')::int as mixed,
+             count(*) filter (where type_needs_check and type_checked_at is null)::int as to_check,
+             count(*) filter (where type_checked_at is not null and category in ('development','bulk'))::int as checked,
+             count(*) filter (where type_checked_at is not null and exists (
+               select 1 from correction c where c.entity = 'email_thread' and c.entity_id = email_thread.id and c.field in ('order_type','topics')))::int as corrected
+      from email_thread`;
+    ok(`Order conversations: ${ty.dev} development, ${ty.bulk} bulk${ty.mixed ? `, ${ty.mixed} still "mixed" (run pnpm ops reclassify)` : ''}`);
+    if (ty.to_check) warn(`${ty.to_check} marked "Please check" in the dashboard (AI unsure or a clue disagrees)`);
+    if (ty.checked) {
+      const right = ty.checked - ty.corrected;
+      ok(`Checked by your team: ${ty.checked}. AI was right on ${right} (${Math.round((right / ty.checked) * 100)}%), corrected ${ty.corrected}`);
+    }
+    const [cls] = await sql`select backfill_progress->'classify' as p from mailbox where backfill_progress ? 'classify' limit 1`;
+    if (cls?.p && !cls.p.finishedAt) {
+      const b = cls.p.batch;
+      ok(`Re-sorting: ${cls.p.done ?? 0} of ${cls.p.total ?? '?'} done${b ? ` (batch: ${b.succeeded ?? 0} ready, ${b.processing ?? 0} in progress)` : ''}`);
+    } else if (cls?.p?.finishedAt) {
+      ok(`Last re-sort ${ago(cls.p.finishedAt)}: ${cls.p.total} conversations, ${cls.p.changed} changed type, ${cls.p.toCheck} to check`);
+    }
+
     section('AI spend this month (estimate)');
     const spend = await sql`select purpose, count(*)::int as calls, count(*) filter (where not ok)::int as failed, coalesce(sum(cost_usd), 0)::float as usd
                             from ai_run where created_at >= date_trunc('month', now()) group by purpose order by purpose`;
@@ -641,6 +666,55 @@ function cmdWorker() {
 /* ------------------------------------------------------------------ main */
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (f) => rest.includes(f);
+/** Re-sort every order-like conversation into Development / Bulk + topics with the current AI rules. */
+async function cmdReclassify(apply) {
+  const s = loadSecrets();
+  const sql = db(s);
+  try {
+    const [mb] = await sql`select id, email from mailbox order by created_at limit 1`;
+    if (!mb) die('No mailbox connected yet.');
+    const onlyNew = flag('--only-new');
+    const candidate = sql`(
+      t.category in ('development','bulk','mixed','payment')
+      or exists (select 1 from email_message m where m.thread_id = t.id and m.direction <> 'internal'
+                 and m.triage->>'category' in ('development','bulk','payment','lab_report')))`;
+    const [n] = await sql`
+      select count(*)::int as total,
+             count(*) filter (where not (t.category_locked and t.topics_locked))::int as todo,
+             count(*) filter (where t.category_locked and t.topics_locked)::int as kept,
+             count(*) filter (where t.classified_at is null and not (t.category_locked and t.topics_locked))::int as never,
+             coalesce(sum(least(16000, (select coalesce(sum(length(coalesce(m.body_clean, m.snippet, ''))), 0) from email_message m where m.thread_id = t.id)))
+                      filter (where not (t.category_locked and t.topics_locked)), 0)::bigint as chars
+      from email_thread t where t.mailbox_id = ${mb.id} and ${candidate}`;
+    const todo = onlyNew ? n.never : n.todo;
+    const [{ value: models }] = await sql`select value from app_setting where key = 'ai_models'`;
+    const model = models?.classify ?? 'claude-sonnet-5-5';
+    const price = { 'claude-haiku-5-5': [0.1, 0.5], 'claude-sonnet-5-5': [2, 10], 'claude-opus-5-5': [4, 20] }[model] ?? [4, 20];
+    const avgChars = n.todo ? Number(n.chars) / n.todo : 0;
+    const inTok = todo * (4500 + avgChars / 3.5);
+    const outTok = todo * 1500; // thinking + answer
+    const usd = ((inTok * price[0] + outTok * price[1]) / 1e6) * (todo >= 50 ? 0.5 : 1);
+    section('Re-sort conversations: Development / Bulk + topics');
+    ok(`${n.total} order-like conversations in ${mb.email}`);
+    ok(`${n.kept} were checked by your team and stay exactly as they are`);
+    ok(`${todo} will be sorted again by ${model}${onlyNew ? ' (only never-sorted ones)' : ''}`);
+    ok(`Estimated cost: about $${Math.max(0.01, usd).toFixed(2)}${todo >= 50 ? ' (half-price batch; usually done within an hour)' : ''}`);
+    if (!apply) {
+      console.log(`\n  Nothing started. Run ${c.b('pnpm ops reclassify --apply')} to start it (the worker must be running).\n`);
+      return;
+    }
+    const [j] = await sql`
+      insert into job (kind, mailbox_id, payload, dedupe_key, priority)
+      values ('classify_backfill', ${mb.id}, ${sql.json({ all: !onlyNew })}, ${'classify_backfill:' + mb.id}, 5)
+      on conflict (dedupe_key) where dedupe_key is not null and status in ('queued','running') do nothing
+      returning id`;
+    if (j) ok(`Started (job ${j.id}). Follow it with ${c.b('pnpm ops status')}.`);
+    else warn('A re-sort is already running. Follow it with pnpm ops status.');
+  } finally {
+    await sql.end({ timeout: 2 }).catch(() => {});
+  }
+}
+
 const commands = {
   init: cmdInit,
   env: cmdEnv,
@@ -651,9 +725,10 @@ const commands = {
   deploy: () => cmdDeploy({ redeploy: false, fast: flag('--fast') }),
   redeploy: () => cmdDeploy({ redeploy: true }),
   worker: cmdWorker,
+  reclassify: () => cmdReclassify(flag('--apply')),
 };
 if (!commands[cmd]) {
-  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 14).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
+  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 15).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
   process.exit(cmd ? 1 : 0);
 }
 Promise.resolve(commands[cmd]()).catch((e) => die(e.message));

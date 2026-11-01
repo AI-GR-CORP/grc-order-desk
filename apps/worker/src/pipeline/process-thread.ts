@@ -9,6 +9,7 @@ import { recomputeReply } from './reply';
 import { ensureThumbnails } from './thumbnails';
 import { isThreadClientApproved } from './approval';
 import { triageMessages, updateThreadCategory } from './triage';
+import { classifyThread, needsClassification } from './classify';
 
 export interface ProcessOptions {
   /** Run the extraction model if the thread is tracked and has unseen messages. */
@@ -38,8 +39,13 @@ export async function processThread(
   if (!ing) return;
 
   if (ing.needsTriageIds.length) await triageMessages(ctx, settings, profile, ing.needsTriageIds);
-  const category = await updateThreadCategory(ctx.sql, ing.threadId);
+  let category = await updateThreadCategory(ctx.sql, ing.threadId);
   await resolveThreadCompany(ctx.sql, settings, ing.threadId);
+  // Conversation-level sort: development or bulk, plus topics (skipped if a person fixed them).
+  if (await needsClassification(ctx.sql, ing.threadId)) {
+    const o = await classifyThread(ctx, settings, profile, ing.threadId);
+    if (o) category = o.category as typeof category;
+  }
 
   // Only clients an owner approved are read in depth (and cost AI tokens).
   if (opts.extract && TRACKED_CATEGORIES.includes(category) && (await isThreadClientApproved(ctx.sql, ing.threadId))) {

@@ -1,6 +1,7 @@
 import type { Ctx } from './context';
 import { errorMessage, NonRetryableError } from './errors';
 import { runBackfill } from './jobs/backfill';
+import { runClassifyBackfill } from './jobs/classify-backfill';
 import { runExtractBackfill } from './jobs/extract-backfill';
 import { runExtractCompany } from './jobs/extract-company';
 import { runReprocess } from './jobs/reprocess';
@@ -22,6 +23,8 @@ async function dispatch(ctx: Ctx, job: Job): Promise<void> {
       if (typeof companyId !== 'string') throw new NonRetryableError('extract_company without companyId');
       return runExtractCompany(ctx, companyId);
     }
+    case 'classify_backfill':
+      return runClassifyBackfill(ctx, job);
     case 'sync':
       if (!job.mailbox_id) throw new NonRetryableError('sync without mailbox');
       return runSync(ctx, job.mailbox_id);

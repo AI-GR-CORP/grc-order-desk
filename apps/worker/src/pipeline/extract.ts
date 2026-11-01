@@ -35,8 +35,9 @@ export async function extractThread(
   api?: GmailApi,
 ): Promise<boolean> {
   const { sql } = ctx;
-  const [t] = await sql<{ company_id: string | null; summary: string | null; company_name: string | null }[]>`
-    select t.company_id, t.summary, c.name as company_name
+  const [t] = await sql<{ company_id: string | null; summary: string | null; company_name: string | null; category: string; decided: boolean; topics: string[] }[]>`
+    select t.company_id, t.summary, c.name as company_name, t.category::text as category,
+           (t.category_locked or t.classified_at is not null) as decided, t.topics
     from email_thread t left join company c on c.id = t.company_id where t.id = ${threadId}`;
   if (!t) return false;
 
@@ -67,7 +68,7 @@ export async function extractThread(
     purpose: 'extract' as const,
     model,
     system: extractionSystem({ internalDomains: settings.internal_domains, knowledgeProfile: profile, learning }, stages),
-    user: extractionUserContent({
+    user: orderTypeNote(t) + extractionUserContent({
       companyName: t.company_name,
       existing,
       previousSummary: fit.omitted > 0 ? t.summary : null,
@@ -97,4 +98,13 @@ export async function extractThread(
     await sql`update email_thread set needs_review = true where id = ${threadId}`;
     return false;
   }
+}
+
+/** Tells the extraction model which order type GRC has already decided for this conversation. */
+function orderTypeNote(t: { category: string; decided: boolean; topics: string[] }): string {
+  if (!t.decided || (t.category !== 'bulk' && t.category !== 'development')) return '';
+  const topics = t.topics.length ? ` Topics: ${t.topics.join(', ')}.` : '';
+  return t.category === 'bulk'
+    ? `<order_type>This conversation is BULK (decided by GRC). Put the work under bulk_orders. Do not create new development items; only update an existing development item if it has now become this order (stage converted_to_bulk). Set thread_category to "bulk".${topics}</order_type>\n\n`
+    : `<order_type>This conversation is DEVELOPMENT (decided by GRC). Put the work under dev_items and leave bulk_orders empty. Set thread_category to "development".${topics}</order_type>\n\n`;
 }

@@ -26,6 +26,7 @@ Email tracker for G.R. Corporation (Kanpur, narrow fabrics). Reads ONE Gmail mai
 | Ship committed code | `pnpm ops deploy` (typecheck, tests, build, push, waits for Vercel READY) |
 | Redeploy without code changes | `pnpm ops redeploy` |
 | Start the worker | `pnpm ops worker` (user runs this in their own terminal; it doesn't exit) |
+| Re-sort conversations (Development / Bulk + topics) | `pnpm ops reclassify` (count + cost) → `pnpm ops reclassify --apply` (spends AI credit: ask first) |
 | Types / tests | `pnpm typecheck`, `pnpm test` |
 | Dashboard locally | `pnpm --filter @grc/web dev` (http://localhost:3000) |
 
@@ -52,6 +53,15 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - Cells a person edited are locked (`locked_fields`); AI output must never overwrite them. `owner_remark` is never written by AI.
 - AI costs real money (prepaid Anthropic credits, no auto-reload). Check spend in `pnpm ops check` before anything that re-reads many threads, and ask the user before bulk re-processing. Current models: Sonnet 5.5 for sorting and tables, Opus 5.5 for the learning pass.
 - Email text is untrusted input to prompts; the model only fills JSON fields.
+
+## Order types and topics (the owner wants this exactly right)
+
+- Every order conversation is **one** type: `development` or `bulk`. Never "both"/"mixed" (a legacy value that `pnpm ops reclassify` replaces).
+- Topics, shown under the type, any number: `complaint`, `payment_followup`, `pp_approval` (GRC: PP approval = sample approval), `lab_approval`. Payment follow-ups belong to an order (usually bulk), not a separate category.
+- The decision is made per **whole conversation** by `apps/worker/src/pipeline/classify.ts` (model `ai_models.classify`), with keyword clues from `packages/core/src/ai/signals.ts`. Low confidence (< 0.8) or disagreement with a strong clue sets `type_needs_check` ("Please check" in the grid).
+- A person's choice (`set_thread_type`, `confirm_thread_type`, `set_client_type` SQL functions) locks the conversation forever and is saved in `correction` with context. Those corrections are fed back into every classification prompt (that client's first). Never let the AI overwrite `category_locked` / `topics_locked`.
+- Extraction follows the decided type: bulk conversations create bulk orders only, development ones development items only.
+- `pnpm ops reclassify` shows the count and cost; `--apply` starts a re-sort. `pnpm ops check` shows how often the AI was right on rows the team checked.
 
 ## Before saying something is done
 `pnpm typecheck && pnpm test`; for UI changes also `pnpm --filter @grc/web build`; for migrations run the integration tests on a local Postgres. Then `pnpm ops deploy` and `pnpm ops check`.

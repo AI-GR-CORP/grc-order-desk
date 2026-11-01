@@ -85,6 +85,21 @@ export type ThreadCategory = (typeof THREAD_CATEGORIES)[number];
 
 export const TRACKED_CATEGORIES: readonly ThreadCategory[] = ['development', 'bulk', 'mixed'];
 
+/** Orders are only ever one of these two. ("mixed" is a legacy value that re-sorting replaces.) */
+export const ORDER_TYPES = ['development', 'bulk'] as const;
+export type OrderType = (typeof ORDER_TYPES)[number];
+
+/** What an order conversation is about, shown under its type. Any number may apply. */
+export const ORDER_TOPICS = [
+  { key: 'complaint', label: 'Complaint' },
+  { key: 'payment_followup', label: 'Payment follow-up' },
+  { key: 'pp_approval', label: 'PP / sample approval' },
+  { key: 'lab_approval', label: 'Lab approval' },
+] as const;
+export const ORDER_TOPIC_KEYS = ORDER_TOPICS.map((t) => t.key) as unknown as readonly ['complaint', 'payment_followup', 'pp_approval', 'lab_approval'];
+export type OrderTopic = (typeof ORDER_TOPICS)[number]['key'];
+export const topicLabel = (k: string): string => ORDER_TOPICS.find((t) => t.key === k)?.label ?? k;
+
 export const REPLY_STATES = [
   'awaiting',
   'replied',
@@ -113,13 +128,14 @@ export function bulkStatusLabel(key: string | null | undefined): string {
 
 /**
  * Thread category from the per-message triage results.
- * development + bulk in the same thread => mixed. Anything tracked beats untracked.
+ * development + bulk in the same thread => bulk (provisional; the conversation-level sort decides). Anything tracked beats untracked.
  */
 export function threadCategoryFromTriage(categories: readonly (TriageCategory | null | undefined)[]): ThreadCategory {
   const set = new Set(categories.filter(Boolean));
   const dev = set.has('development');
   const bulk = set.has('bulk');
-  if (dev && bulk) return 'mixed';
+  // Provisional only (thread-level sorting decides); an order mentioned anywhere makes it bulk.
+  if (dev && bulk) return 'bulk';
   if (dev) return 'development';
   if (bulk) return 'bulk';
   if (set.has('payment')) return 'payment';

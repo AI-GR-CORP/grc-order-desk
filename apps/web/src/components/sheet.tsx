@@ -17,7 +17,7 @@ const pill = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px
 const TYPE: Record<string, { label: string; cls: string }> = {
   development: { label: 'Development', cls: 'bg-indigo-soft text-indigo' },
   bulk: { label: 'Bulk', cls: 'bg-teal-soft text-teal' },
-  mixed: { label: 'Dev + bulk', cls: 'bg-mustard-soft text-mustard' },
+  mixed: { label: 'Choose type', cls: 'bg-mustard-soft text-mustard' },
 };
 
 export function TypeChip({ kind }: { kind: string }) {
@@ -127,9 +127,9 @@ export function SheetTabs({ tabs, right }: { tabs: TabItem[]; right?: ReactNode 
 /** The single line above a grid: tabs on the left, filters and search on the right. */
 export function GridBar({ tabs, children }: { tabs?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4">
       {tabs}
-      {children && <div className="ml-auto flex flex-wrap items-center gap-2 py-2">{children}</div>}
+      {children && <div className="ml-auto flex flex-wrap items-center gap-1.5 py-2">{children}</div>}
     </div>
   );
 }
@@ -156,7 +156,7 @@ export function SearchBox(props: React.InputHTMLAttributes<HTMLInputElement>) {
       <input
         type="search"
         {...props}
-        className={cx('h-8 w-52 max-w-full rounded-lg border border-line bg-surface pl-8 pr-3 text-[13.5px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
+        className={cx('h-8 w-40 max-w-full rounded-lg border border-line bg-surface pl-8 pr-3 text-[13.5px] outline-none placeholder:text-slate focus:border-indigo focus:ring-3 focus:ring-indigo/15', props.className)}
       />
     </label>
   );

@@ -81,6 +81,13 @@ export interface ThreadRow {
   company_id: string | null;
   category: ThreadCategory;
   category_locked: boolean;
+  topics: string[];
+  topics_locked: boolean;
+  type_confidence: number | null;
+  type_reason: string | null;
+  type_needs_check: boolean;
+  type_checked_at: string | null;
+  classified_at: string | null;
   company_locked: boolean;
   handled_by: string | null;
   first_message_at: string | null;

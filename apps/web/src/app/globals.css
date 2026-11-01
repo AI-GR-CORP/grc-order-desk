@@ -220,7 +220,7 @@ button, [role="button"], a, select, summary { cursor: pointer; }
   gap: 7px;
   height: 46px;
   padding: 0 2px;
-  margin-right: 16px;
+  margin-right: 13px;
   border-bottom: 2px solid transparent;
   color: var(--color-muted);
   font-size: 14px;

@@ -6,9 +6,12 @@ import { setBulkStage, updateBulkField, updateDevField } from '@/app/actions/ite
 import type { ActionResult } from '@/app/actions/result';
 import { cx, gmailLink } from '@/lib/format';
 import { cellValue, label, SHEET_COLUMNS, type SheetColumn, type SheetRow } from '@/lib/sheet';
-import { BulkStatusText, ReplyCell, shortDate, TypeChip } from './sheet';
+import { BulkStatusText, ReplyCell, shortDate } from './sheet';
+import { TypeBadges } from './type-cell';
 import { buttonClass, inputClass } from './ui';
 import type { BulkChecklist, StageDef } from './work-sheet';
+import { TypeEditor } from './type-cell';
+import { typeInfo } from '@/lib/sheet';
 
 /** Everything about one row, in a side panel: every column as a labelled field you can edit. */
 export function RowPanel({
@@ -86,7 +89,7 @@ export function RowPanel({
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <TypeChip kind={row.row_kind} />
+            <TypeBadges info={typeInfo(row)} />
             <ReplyCell state={row.reply_state} waitingOn={row.waiting_on} dueAt={row.reply_due_at} />
             {row.source === 'bulk' && <BulkStatusText status={row.stage} />}
             {row.last_at && <span className="text-[13px] text-muted">Last email {shortDate(row.last_at)}</span>}
@@ -107,6 +110,12 @@ export function RowPanel({
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           {approveSlot}
+
+          {row.thread_id && (
+            <section className="rounded-xl border border-line px-4 py-4">
+              <TypeEditor key={`${row.row_kind}-${row.topics.join()}-${row.type_checked_at ?? ''}`} info={typeInfo(row)} />
+            </section>
+          )}
 
           {thumbs.length > 0 && (
             <section>

@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import { config, need } from '../config';
 import type { UsageInfo } from './pricing';
 
-export type Purpose = 'triage' | 'extract' | 'discovery';
+export type Purpose = 'triage' | 'extract' | 'discovery' | 'classify';
 
 export interface CallOptions<T> {
   purpose: Purpose;

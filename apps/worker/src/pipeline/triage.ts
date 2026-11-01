@@ -64,13 +64,14 @@ export async function triageMessages(ctx: Ctx, settings: AppSettings, profile: s
 
 /** Recomputes the thread category from its messages unless a person fixed it. */
 export async function updateThreadCategory(sql: Db, threadId: string): Promise<ThreadCategory> {
-  const rows = await sql<{ category: string | null; locked: boolean; current: ThreadCategory }[]>`
-    select m.triage->>'category' as category, t.category_locked as locked, t.category as current
+  const rows = await sql<{ category: string | null; locked: boolean; current: ThreadCategory; sorted: boolean }[]>`
+    select m.triage->>'category' as category, t.category_locked as locked, t.category as current, t.classified_at is not null as sorted
     from email_thread t
     left join email_message m on m.thread_id = t.id and m.direction in ('inbound','outbound')
     where t.id = ${threadId}`;
   if (rows.length === 0) return 'unclassified';
-  if (rows[0]!.locked) return rows[0]!.current;
+  // A person's choice, or the conversation-level sort, decides once it exists.
+  if (rows[0]!.locked || rows[0]!.sorted) return rows[0]!.current;
   const cat = threadCategoryFromTriage(rows.map((r) => r.category as TriageCategory | null));
   // Extraction can refine development/bulk into mixed/other; don't let triage undo that once set.
   const current = rows[0]!.current;

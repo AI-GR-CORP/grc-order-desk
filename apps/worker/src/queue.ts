@@ -1,6 +1,6 @@
 import type { Db } from './db';
 
-export type JobKind = 'backfill' | 'extract_backfill' | 'extract_company' | 'sync' | 'reprocess_thread';
+export type JobKind = 'backfill' | 'extract_backfill' | 'extract_company' | 'classify_backfill' | 'sync' | 'reprocess_thread';
 
 export interface Job {
   id: string;

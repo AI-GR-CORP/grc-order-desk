@@ -15,6 +15,8 @@ export const AiModelsSchema = z.object({
   triage: z.string().default('claude-sonnet-5-5'),
   extract: z.string().default('claude-opus-5-5'),
   discovery: z.string().default('claude-opus-5-5'),
+  /** Decides each conversation's order type (development / bulk) and topics. */
+  classify: z.string().default('claude-sonnet-5-5'),
 });
 
 export const AppSettingsSchema = z.object({

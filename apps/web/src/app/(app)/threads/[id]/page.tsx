@@ -87,7 +87,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
         <div className="space-y-6">
           <Panel title="Correct the AI">
             <div className="p-4">
-              <ThreadActions threadId={t.id} category={t.category} companyId={t.company_id} companies={companies} needsReview={t.needs_review} />
+              <ThreadActions threadId={t.id} category={t.category} topics={t.topics ?? []} companyId={t.company_id} companies={companies} needsReview={t.needs_review} />
             </div>
           </Panel>
           <Panel title="Items in this thread">

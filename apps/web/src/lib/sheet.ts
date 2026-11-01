@@ -42,6 +42,27 @@ export interface SheetRow {
   last_at: string | null;
   origin: string;
   created_at: string;
+  topics: string[];
+  type_confidence: number | null;
+  type_needs_check: boolean;
+  type_checked_at: string | null;
+  type_reason: string | null;
+}
+
+/** Rows whose type and topics a person should look at (the AI wasn't sure, or disagreed with a clue). */
+export const needsTypeCheck = (r: Pick<SheetRow, 'type_needs_check' | 'type_checked_at' | 'row_kind'>) =>
+  !r.type_checked_at && (r.type_needs_check || r.row_kind === 'mixed');
+
+export function typeInfo(r: SheetRow) {
+  return {
+    threadId: r.thread_id,
+    kind: r.row_kind,
+    topics: r.topics ?? [],
+    needsCheck: needsTypeCheck(r),
+    checked: Boolean(r.type_checked_at),
+    confidence: r.type_confidence,
+    reason: r.type_reason,
+  };
 }
 
 export interface SheetColumn {

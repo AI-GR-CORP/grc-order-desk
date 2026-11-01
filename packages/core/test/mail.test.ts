@@ -59,7 +59,7 @@ describe('helpers', () => {
   });
   it('similarity', () => expect(similarity('US POLO ELASTIC 25MM', 'us polo elastic')).toBeGreaterThan(0.6));
   it('threadCategoryFromTriage', () => {
-    expect(threadCategoryFromTriage(['development', 'bulk'])).toBe('mixed');
+    expect(threadCategoryFromTriage(['development', 'bulk'])).toBe('bulk');
     expect(threadCategoryFromTriage(['payment', 'development'])).toBe('development');
     expect(threadCategoryFromTriage(['marketing', 'courier'])).toBe('ignored');
     expect(threadCategoryFromTriage([])).toBe('unclassified');

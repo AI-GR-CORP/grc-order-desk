@@ -144,6 +144,11 @@ async function triageStage(ctx: Ctx, mb: MailboxRow, job: Job): Promise<void> {
     await updateThreadCategory(sql, t.id);
     await resolveThreadCompany(sql, settings, t.id);
   }
+  // Sort every order-like conversation into development / bulk + topics (runs alongside discovery).
+  await sql`
+    insert into job (kind, mailbox_id, payload, dedupe_key, priority)
+    values ('classify_backfill', ${mb.id}, ${sql.json({ all: false } as never)}, ${'classify_backfill:' + mb.id}, 5)
+    on conflict (dedupe_key) where dedupe_key is not null and status in ('queued','running') do nothing`;
   await setStage(sql, mb.id, 'discovery');
 }
 

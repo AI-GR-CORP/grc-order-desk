@@ -194,8 +194,8 @@ async function upsertBulkOrder(
 /** Writes one extraction result. Everything in one transaction; human-edited fields are never overwritten. */
 export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtraction, meta: ApplyMeta): Promise<void> {
   await retryOnConflict(() => sql.begin(async (tx) => {
-    const [t] = await tx<{ company_id: string | null; company_locked: boolean; category_locked: boolean; category: ThreadCategory }[]>`
-      select company_id, company_locked, category_locked, category from email_thread where id = ${threadId} for update`;
+    const [t] = await tx<{ company_id: string | null; company_locked: boolean; category_locked: boolean; category: ThreadCategory; sorted: boolean }[]>`
+      select company_id, company_locked, category_locked, category, classified_at is not null as sorted from email_thread where id = ${threadId} for update`;
     if (!t) return;
 
     let companyId = t.company_id ? await canonicalCompanyId(tx, t.company_id) : null;
@@ -218,7 +218,9 @@ export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtra
       handledBy = tm?.id ?? null;
     }
 
-    const category: ThreadCategory = t.category_locked ? t.category : x.thread_category;
+    // Once a person or the conversation-level sort decided the type, extraction can't change it.
+    const decided = t.category_locked || t.sorted;
+    const category: ThreadCategory = decided ? t.category : x.thread_category === 'mixed' ? 'bulk' : x.thread_category;
     const confidence = clamp01(x.confidence) ?? 0;
     const needsReview = confidence < 0.55 || createdCompany || (!companyId && TRACKED_CATEGORIES.includes(category));
 
@@ -245,8 +247,13 @@ export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtra
                   order by sent_at desc limit 1)`;
 
     const ctx = { threadId, companyId, meta };
-    for (const d of x.dev_items) await upsertDevItem(tx, ctx, d);
-    for (const b of x.bulk_orders) await upsertBulkOrder(tx, ctx, b);
+    // Orders are one type: a bulk conversation gets bulk orders (plus the "became an order" update
+    // of an existing development item); a development conversation gets development items only.
+    // (Applies once the type is decided by the conversation-level sort or a person.)
+    const devItems = decided && category === 'bulk' ? x.dev_items.filter((d) => d.existing_item_id && d.stage === 'converted_to_bulk') : x.dev_items;
+    const bulkOrders = decided && category === 'development' ? [] : x.bulk_orders;
+    for (const d of devItems) await upsertDevItem(tx, ctx, d);
+    for (const b of bulkOrders) await upsertBulkOrder(tx, ctx, b);
   }));
 }
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { setClientApproval } from '@/app/actions/approvals';
+import { setClientType } from '@/app/actions/threads';
 import { addDevItem, updateBulkField, updateDevField } from '@/app/actions/items';
 import type { ActionResult } from '@/app/actions/result';
 import { cx, gmailLink } from '@/lib/format';
@@ -14,7 +15,9 @@ import {
   groupByCompany,
   isWaiting,
   label,
+  needsTypeCheck,
   replyRank,
+  typeInfo,
   SHEET_COLUMNS,
   type GridMode,
   type SheetColumn,
@@ -24,7 +27,8 @@ import {
 import { EditableCell } from './editable-cell';
 import { ariaSort, ColumnsMenu, SortHeader, useColumns, type SortState } from './grid-controls';
 import { RowPanel } from './row-panel';
-import { BulkStatusText, GridBar, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip, TypeChip } from './sheet';
+import { TypeCell } from './type-cell';
+import { BulkStatusText, GridBar, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip } from './sheet';
 import { Button, inputClass } from './ui';
 
 /** Tripti's checklist for one bulk order: step key -> what was written, and the latest step reached. */
@@ -84,6 +88,7 @@ function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
 export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approvals, canApprove, companies, bulk, stageDefs, tabs, note, empty }: Props) {
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
+  const [onlyCheck, setOnlyCheck] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
   const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -95,16 +100,18 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
   const showCompany = mode !== 'client';
   const cols = SHEET_COLUMNS.filter((c) => c.key === 'inquiry' || visible.includes(c.key));
   const waitingCount = rows.filter(isWaiting).length;
+  const checkCount = rows.filter(needsTypeCheck).length;
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (onlyWaiting && !isWaiting(r)) return false;
+      if (onlyCheck && !needsTypeCheck(r)) return false;
       if (!needle) return true;
       return [r.company_name, r.company_city, r.merchant, r.brand, r.inquiry, r.thread_subject, r.team_status, r.brand_status, r.owner_remark, r.product_code, r.awb, r.po_number, r.summary]
         .some((v) => v?.toLowerCase().includes(needle));
     });
-  }, [rows, q, onlyWaiting]);
+  }, [rows, q, onlyWaiting, onlyCheck]);
 
   const groups = useMemo(() => {
     const g = groupByCompany(filtered);
@@ -141,9 +148,15 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
       <GridCard>
         <GridBar tabs={tabs}>
           <ToggleChip on={onlyWaiting} onChange={setOnlyWaiting} tone="red">
-            Waiting for reply
+            Reply needed
             <span className={cx('rounded-full px-1.5 text-[12px] font-semibold tabular-nums', onlyWaiting ? 'bg-red text-white' : 'bg-red-soft text-red')}>{waitingCount}</span>
           </ToggleChip>
+          {(checkCount > 0 || onlyCheck) && (
+            <ToggleChip on={onlyCheck} onChange={setOnlyCheck}>
+              To check
+              <span className={cx('rounded-full px-1.5 text-[12px] font-semibold tabular-nums', onlyCheck ? 'bg-mustard text-white' : 'bg-mustard-soft text-mustard')}>{checkCount}</span>
+            </ToggleChip>
+          )}
           <ColumnsMenu
             columns={SHEET_COLUMNS.map((c) => ({ key: c.key, label: label(c, labels), locked: c.key === 'inquiry' }))}
             visible={cols.map((c) => c.key)}
@@ -168,10 +181,10 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
 
         {groups.length === 0 ? (
           <div className="flex-1 border-t border-line">
-            {q || onlyWaiting ? (
+            {q || onlyWaiting || onlyCheck ? (
               <div className="px-5 py-14 text-center">
                 <p className="font-medium">Nothing matches</p>
-                <button className="mt-2 text-[14px] font-medium text-indigo hover:underline" onClick={() => { setQ(''); setOnlyWaiting(false); }}>
+                <button className="mt-2 text-[14px] font-medium text-indigo hover:underline" onClick={() => { setQ(''); setOnlyWaiting(false); setOnlyCheck(false); }}>
                   Clear the search and filters
                 </button>
               </div>
@@ -393,6 +406,24 @@ function CompanyCell({
           {group.waiting} waiting for reply
         </span>
       )}
+      {mode === 'approvals' && id && tab === 'pending' && (
+        <label className="flex items-center gap-1.5 text-[12.5px] text-muted">
+          Set all to
+          <select
+            className="h-7 rounded-md border border-line bg-surface px-1.5 text-[12.5px] text-ink-2"
+            value=""
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value as 'development' | 'bulk';
+              if (v) act(() => setClientType(id, v), `${group.name}: all rows set to ${v === 'bulk' ? 'Bulk' : 'Development'}`);
+            }}
+          >
+            <option value="">choose…</option>
+            <option value="development">Development</option>
+            <option value="bulk">Bulk</option>
+          </select>
+        </label>
+      )}
       {mode === 'approvals' && id && canApprove && tab === 'pending' && (
         <>
           {info && <span className="text-[12.5px] text-muted">About ${info.cost.toFixed(2)} for the AI to read</span>}
@@ -444,7 +475,7 @@ function Cell({ col, r, thumbs, stepLabel }: { col: SheetColumn; r: SheetRow; th
     case 'picture':
       return <Thumbs urls={thumbs} />;
     case 'type':
-      return <TypeChip kind={r.row_kind} />;
+      return <TypeCell info={typeInfo(r)} />;
     case 'reply':
       return <ReplyCell state={r.reply_state} waitingOn={r.waiting_on} dueAt={r.reply_due_at} />;
     case 'last_email':

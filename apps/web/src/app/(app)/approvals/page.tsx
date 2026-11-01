@@ -15,7 +15,7 @@ const TABS: { param: string; approval: ClientApproval | null; label: string }[] 
   { param: 'waiting', approval: 'pending', label: 'Waiting for approval' },
   { param: 'approved', approval: 'approved', label: 'Approved' },
   { param: 'ignored', approval: 'rejected', label: 'Ignored' },
-  { param: 'unmatched', approval: null, label: 'Senders not matched' },
+  { param: 'unmatched', approval: null, label: 'Not matched' },
 ];
 
 export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
