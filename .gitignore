@@ -9,3 +9,5 @@ coverage/
 eval-report.json
 .DS_Store
 *.log
+.vercel/
+.claude/settings.local.json

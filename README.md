@@ -134,6 +134,28 @@ Nothing is read in depth until an owner approves the client. New senders' develo
 
 **Replies must be visible in the tracked mailbox.** If staff answer from their own mailboxes without CC'ing it, threads look unanswered. Either CC the main mailbox, or extend the worker to read staff mailboxes via domain-wide delegation.
 
+## Operations from the terminal (and Claude Code)
+
+Every secret lives in **one file, `.env.local` at the repo root** (gitignored, mode 600). Create or refresh it with:
+
+```bash
+pnpm ops init      # reuses apps/worker/.env, asks (hidden) only for what's missing; optional Vercel token
+```
+
+Then everything else is one command:
+
+```bash
+pnpm ops check     # secrets, database, migrations, Gmail, worker, AI spend, Vercel, website
+pnpm ops status    # quick: import progress, jobs, clients waiting
+pnpm ops migrate   # pending DB migrations; --apply runs them
+pnpm ops deploy    # typecheck + tests + build, push, wait for Vercel READY
+pnpm ops redeploy  # after changing Vercel env vars
+pnpm ops vercel-env [--apply]   # push the dashboard's variables from .env.local to Vercel
+pnpm ops worker    # start the worker (keeps the Mac awake)
+```
+
+`ops` never prints secret values. `CLAUDE.md` tells Claude Code how to work in this repo, and `.claude/settings.json` blocks it from reading `.env` files and asks before pushes, deploys and migrations.
+
 ## Development
 
 ```bash

@@ -1,0 +1,5 @@
+# Never upload secrets if someone runs the Vercel CLI from this folder.
+**/.env
+**/.env.*
+!**/.env.example
+.claude/

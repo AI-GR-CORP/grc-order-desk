@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Read(~/Downloads/client_secret_*.json)",
+      "Bash(cat *.env*)",
+      "Bash(cat .env*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(grep * .env*)",
+      "Bash(printenv*)",
+      "Bash(env)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(pnpm ops deploy*)",
+      "Bash(pnpm ops redeploy*)",
+      "Bash(pnpm ops migrate --apply*)",
+      "Bash(pnpm ops vercel-env --apply*)"
+    ],
+    "allow": [
+      "Bash(pnpm ops check)",
+      "Bash(pnpm ops status)",
+      "Bash(pnpm ops migrate)",
+      "Bash(pnpm ops vercel-env)",
+      "Bash(pnpm ops env)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm install*)",
+      "Bash(pnpm --filter @grc/web build)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ]
+  }
+}
