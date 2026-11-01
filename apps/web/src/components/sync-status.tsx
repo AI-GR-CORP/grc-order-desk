@@ -23,13 +23,13 @@ export function SyncStatus({ mailboxes }: { mailboxes: MailboxStatusRow[] }) {
     dot = 'bg-mustard';
   } else {
     const stale = !mb.last_synced_at || Date.now() - new Date(mb.last_synced_at).getTime() > 15 * 60_000;
-    text = stale ? `Last checked ${ago(mb.last_synced_at)}` : `Up to date, checked ${ago(mb.last_synced_at)}`;
+    text = stale ? `Last checked ${ago(mb.last_synced_at)}` : `Checked ${ago(mb.last_synced_at)}`;
     dot = stale ? 'bg-mustard' : 'bg-teal';
   }
   return (
-    <Link href="/settings" className={cx('flex items-center gap-2 text-[12.5px]', tone)}>
-      <span className={cx('size-2 rounded-full', dot)} aria-hidden />
-      {text}
+    <Link href="/settings" className={cx('flex items-center gap-2 text-[12.5px]', tone)} title={text}>
+      <span className={cx('size-2 shrink-0 rounded-full', dot)} aria-hidden />
+      <span className="sync-text truncate">{text}</span>
     </Link>
   );
 }

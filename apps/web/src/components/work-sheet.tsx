@@ -308,7 +308,7 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
       </GridCard>
 
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 animate-fade-in flex-wrap items-center gap-3 rounded-xl bg-ink px-5 py-3 text-white shadow-[0_12px_32px_rgba(15,23,42,0.3)] lg:ml-[124px]">
+        <div className="fixed bottom-6 left-1/2 z-40 flex w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 animate-fade-in flex-wrap items-center gap-3 rounded-xl bg-ink px-5 py-3 text-white shadow-[0_12px_32px_rgba(15,23,42,0.3)] lg:ml-[96px]">
           <span className="text-[14px]">
             <span className="font-semibold">{selected.size} {selected.size === 1 ? 'client' : 'clients'} selected</span>
             <span className="text-white/75">, {selectedInfo.n} conversations, about ${selectedInfo.cost.toFixed(2)} to read</span>
