@@ -1,14 +1,6 @@
-import { BULK_STATUSES, DEV_STAGES, devStageTone, type Tone } from '@grc/core';
+import { BULK_STATUSES, DEV_STAGES, type Tone } from '@grc/core';
 import { cx } from '@/lib/format';
 
-export const toneBg: Record<Tone, string> = {
-  neutral: 'bg-slate',
-  waiting: 'bg-mustard',
-  progress: 'bg-indigo',
-  good: 'bg-teal',
-  alert: 'bg-red',
-  muted: 'bg-line',
-};
 const toneChip: Record<Tone, string> = {
   neutral: 'bg-slate-soft text-ink-2',
   waiting: 'bg-mustard-soft text-mustard',
@@ -34,20 +26,6 @@ export function BulkStatusChip({ status }: { status: string }) {
     <span className={cx('inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-[12px] font-medium', toneChip[s?.tone ?? 'neutral'])}>
       {s?.label ?? status}
     </span>
-  );
-}
-
-/** The woven stripe: one thread per item, coloured by its stage. */
-export function Selvedge({ stages, className }: { stages: string[]; className?: string }) {
-  if (stages.length === 0) return null;
-  const order = DEV_STAGES.map((s) => s.key as string);
-  const sorted = [...stages].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  return (
-    <div className={cx('selvedge', className)} aria-label={`${stages.length} items by stage`} role="img">
-      {sorted.map((s, i) => (
-        <span key={i} className={toneBg[devStageTone(s)]} title={DEV_STAGES.find((x) => x.key === s)?.label} />
-      ))}
-    </div>
   );
 }
 

@@ -46,7 +46,7 @@ export function EditableCell({ value, onSave, kind = 'text', options, locked, di
   if (editing) {
     const common = {
       ref,
-      className: 'w-full rounded border border-indigo bg-surface px-1.5 py-1 text-[13px] outline-none ring-2 ring-indigo/15',
+      className: 'w-full min-w-24 border-2 border-indigo bg-surface px-1 py-0.5 text-[13px] text-black outline-none',
       onKeyDown: (e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
           setEditing(false);
@@ -89,15 +89,15 @@ export function EditableCell({ value, onSave, kind = 'text', options, locked, di
         setDraft(shown ?? '');
         setEditing(true);
       }}
-      title={locked ? 'Edited by hand. The AI won’t change this cell.' : 'Click to edit'}
+      title={locked ? 'Typed by a person. The AI won’t change this cell.' : 'Click to type in this cell'}
       className={cx(
-        'group relative block w-full rounded px-1 py-0.5 text-left hover:bg-indigo-soft/60',
+        'group relative block min-h-[22px] w-full px-0.5 py-0.5 text-left text-black outline-indigo hover:outline hover:outline-1',
         pending && 'opacity-60',
         className,
       )}
     >
-      {display ?? (shown ? <span className="whitespace-pre-wrap break-words">{shown}</span> : <span className="text-line">{placeholder ?? '—'}</span>)}
-      {locked && <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-indigo" aria-label="edited by hand" />}
+      {display ?? (shown ? <span className="whitespace-pre-wrap break-words">{shown}</span> : <span className="text-transparent group-hover:text-line">{placeholder ?? 'type here'}</span>)}
+      {locked && <span className="absolute right-0 top-0 size-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-indigo" aria-label="typed by a person" />}
     </button>
   );
 }

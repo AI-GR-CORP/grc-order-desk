@@ -17,13 +17,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <NavRail
         email={user.email}
         counts={{ needsReply: needs.count ?? 0, approvals: waitingClients.count ?? 0, review: threadsToReview.count ?? 0 }}
         sync={<SyncStatus mailboxes={mailboxes} />}
       />
-      <main className="min-w-0">{children}</main>
+      <main className="min-w-0 bg-surface lg:h-dvh lg:overflow-y-auto">{children}</main>
       <OverdueWatcher realertMinutes={settings.realert_minutes} />
     </div>
   );

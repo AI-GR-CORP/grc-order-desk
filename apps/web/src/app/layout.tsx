@@ -1,8 +1,3 @@
-import '@fontsource/ibm-plex-sans/400.css';
-import '@fontsource/ibm-plex-sans/500.css';
-import '@fontsource/ibm-plex-sans/600.css';
-import '@fontsource/ibm-plex-sans-condensed/400.css';
-import '@fontsource/ibm-plex-sans-condensed/500.css';
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
@@ -13,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { themeColor: '#1d2b4f' };
+export const viewport: Viewport = { themeColor: '#ffffff' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

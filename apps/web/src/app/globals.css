@@ -1,38 +1,45 @@
 @import "tailwindcss";
 
 /*
- * Palette named after shade names in GRC's own EPT sheet.
- * Ink = Apple Navy, action = Mood Indigo, overdue = Haute Red, done = Real Teal.
+ * Looks like GRC's own Google Sheet on purpose: Arial, cyan header row (#75fbfd) and
+ * yellow company cells (#ffff54) sampled from "customer portfolio 2025", black cell borders.
+ * Chrome follows Google Sheets: green for actions, blue for links and selection.
  */
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-condensed: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --font-condensed: Arial, "Helvetica Neue", Helvetica, sans-serif;
 
-  --color-ink: #1d2b4f;
-  --color-ink-2: #3b4766;
-  --color-ground: #f4f5f8;
+  --color-ink: #202124;
+  --color-ink-2: #3c4043;
+  --color-ground: #f8f9fa;
   --color-surface: #ffffff;
-  --color-line: #dde1e8;
-  --color-line-2: #eceef3;
-  --color-muted: #646c84;
+  --color-line: #dadce0;
+  --color-line-2: #e8eaed;
+  --color-muted: #5f6368;
 
-  --color-indigo: #34448a;
-  --color-indigo-soft: #e8ebf6;
-  --color-red: #c3303c;
-  --color-red-soft: #fbe8ea;
-  --color-teal: #0e7a78;
-  --color-teal-soft: #e1f2f1;
-  --color-mustard: #9c6b0c;
-  --color-mustard-soft: #faefd6;
-  --color-slate: #8a91a5;
-  --color-slate-soft: #eef0f4;
+  --color-indigo: #1a73e8;
+  --color-indigo-soft: #e8f0fe;
+  --color-go: #188038;
+  --color-go-dark: #137333;
+  --color-go-soft: #e6f4ea;
+  --color-red: #d93025;
+  --color-red-soft: #fce8e6;
+  --color-teal: #188038;
+  --color-teal-soft: #e6f4ea;
+  --color-mustard: #b06000;
+  --color-mustard-soft: #fef7e0;
+  --color-slate: #80868b;
+  --color-slate-soft: #f1f3f4;
+
+  --color-head: #75fbfd;
+  --color-company: #ffff54;
+  --color-grid: #000000;
 }
 
 html {
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background: var(--color-ground);
-  font-feature-settings: "tnum" 1;
+  background: var(--color-surface);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -44,7 +51,6 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-indigo);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -54,22 +60,129 @@ body {
   }
 }
 
-/* The selvedge: a woven stripe showing each item of a company as a coloured thread. */
-.selvedge {
-  display: flex;
-  height: 6px;
-  border-radius: 1px;
-  overflow: hidden;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 3px, rgba(255, 255, 255, 0.35) 3px 4px);
+/* ------------------------------------------------------------------ the sheet */
+.sheet-wrap {
+  overflow: auto;
+  background: #fff;
+  max-height: 72dvh;
 }
-.selvedge > span {
-  flex: 1 1 0;
-  min-width: 4px;
-  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 4px);
+@media (min-width: 1024px) {
+  .sheet-wrap { max-height: none; }
+}
+
+.sheet {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.35;
+  color: #000;
+  border-left: 1px solid var(--color-grid);
+}
+.sheet th,
+.sheet td {
+  border-right: 1px solid var(--color-grid);
+  border-bottom: 1px solid var(--color-grid);
+}
+.sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--color-head);
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 9px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+.sheet td {
+  background: #fff;
+  padding: 5px 7px;
+  vertical-align: middle;
+}
+.sheet tbody tr:hover > td:not(.co):not(.rn):not(.city) {
+  background: #f8f9fa;
+}
+
+/* row numbers, like the grey column in Sheets; red when a customer is waiting on GRC */
+.sheet .rn {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 38px;
+  min-width: 38px;
+  padding: 0 2px;
+  background: #f8f9fa !important;
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 400;
+  text-align: center;
+}
+.sheet thead .rn { z-index: 5; }
+.sheet .rn.alert {
+  background: var(--color-red) !important;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* the yellow company cell, merged down the company's rows */
+.sheet .co {
+  position: sticky;
+  left: 38px;
+  z-index: 1;
+  min-width: 160px;
+  max-width: 220px;
+  padding: 8px 10px;
+  background: var(--color-company);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.sheet thead .co {
+  z-index: 4;
+  background: var(--color-head);
+  font-size: 13.5px;
+}
+.sheet .co a:hover { text-decoration: underline; }
+.sheet .co.unknown { background: #fff9c4; }
+
+.sheet .city { text-align: center; font-size: 12px; }
+.sheet .center { text-align: center; }
+.sheet .pic img {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border: 1px solid #dadce0;
+}
+
+/* tabs along the bottom, like sheet tabs */
+.sheet-tabs a,
+.sheet-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: #3c4043;
+  white-space: nowrap;
+  border-top: 3px solid transparent;
+}
+.sheet-tabs a:hover,
+.sheet-tabs button:hover { background: #e8eaed; }
+.sheet-tabs [aria-current="page"],
+.sheet-tabs [aria-pressed="true"] {
+  background: #fff;
+  color: var(--color-go);
+  font-weight: 700;
+  border-top-color: var(--color-go);
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.25);
 }
 
 .sheet-cell {
-  font-family: var(--font-condensed);
+  font-family: var(--font-sans);
   font-size: 13px;
 }
