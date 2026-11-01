@@ -93,7 +93,7 @@ d('worker pipeline (integration)', () => {
     const settings = await mods.db.getSettings(sql, true);
     const [mb] = await sql<{ id: string }[]>`insert into mailbox (email, status) values ('admin@grcorporation.co.in', 'active') returning id`;
     await sql`insert into team_member (name, email) values ('Poornima', 'poornima@grcorporation.co.in')`;
-    await sql`insert into company (name, name_key, domains) values ('Arvind Fashion', 'arvind fashion', '{arvindbrands.co.in}')`;
+    await sql`insert into company (name, name_key, domains, approval) values ('Arvind Fashion', 'arvind fashion', '{arvindbrands.co.in}', 'approved')`;
 
     const thread: GmailThread = {
       id: 'gt-1',
@@ -181,6 +181,47 @@ d('worker pipeline (integration)', () => {
     expect(nr2!.n).toBe(1);
     const runs = await sql`select purpose, count(*)::int as n from ai_run group by purpose order by purpose`;
     expect(runs.map((x) => `${x.purpose}:${x.n}`)).toEqual(['extract:2', 'triage:3']);
+  });
+
+  it('reads a client only after it is approved', async () => {
+    const { isThreadClientApproved } = await import('../src/pipeline/approval');
+    const { runExtractCompany } = await import('../src/jobs/extract-company');
+    const settings = await mods.db.getSettings(sql, true);
+    const ctx = { sql, log: (await import('../src/log')).log, storage: null };
+    const [mb] = await sql<{ id: string }[]>`select id from mailbox limit 1`;
+    const [co] = await sql<{ id: string; approval: string }[]>`
+      insert into company (name, name_key, domains) values ('Shori Trends', 'shori trends', '{shori.in}') returning id, approval`;
+    expect(co!.approval).toBe('pending');
+
+    const ing = (await mods.ingest.ingestThread(sql, settings, mb!.id, {
+      id: 'gt-2',
+      messages: [gmailMsg('n1', T0, 'Amit <amit@shori.in>', 'yash@grcorporation.co.in', 'Please send PI for VH-14A, 8560 mtrs.', 'VH-14A PI')],
+    }))!;
+    await mods.triage.triageMessages(ctx, settings, '', ing.needsTriageIds);
+    await sql`update email_message set triage = triage || '{"category":"bulk"}'::jsonb where thread_id = ${ing.threadId}`;
+    expect(await mods.triage.updateThreadCategory(sql, ing.threadId)).toBe('bulk');
+    expect(await mods.companies.resolveThreadCompany(sql, settings, ing.threadId)).toBe(co!.id);
+    expect(await isThreadClientApproved(sql, ing.threadId)).toBe(false);
+
+    extraction = {
+      ...extraction,
+      thread_category: 'bulk',
+      company: { name: 'Shori Trends', city: null, country: 'India' },
+      dev_items: [],
+      bulk_orders: [{ existing_order_id: null, from_dev_item_id: null, brand: 'Van Heusen', product_code: 'VH-14A', description: 'Elastic', qty_mtrs: 8560, pi_number: null, po_number: null, status: 'open', current_stage: null, stages: [], next_action: 'Send PI', summary: 'PI requested', confidence: 0.9 }],
+    };
+    const orders = async () => (await sql<{ n: number }[]>`select count(*)::int as n from bulk_order where company_id = ${co!.id}`)[0]!.n;
+
+    await runExtractCompany(ctx, co!.id); // pending: must not read
+    expect(await orders()).toBe(0);
+    const [q] = await sql`select tracked_threads, awaiting_reply, approval from v_client_queue where id = ${co!.id}`;
+    expect(q).toMatchObject({ tracked_threads: 1, awaiting_reply: 0, approval: 'pending' });
+
+    await sql`update company set approval = 'approved' where id = ${co!.id}`;
+    await runExtractCompany(ctx, co!.id);
+    expect(await orders()).toBe(1);
+    const [t] = await sql<{ done: boolean }[]>`select extracted_through is not null as done from email_thread where id = ${ing.threadId}`;
+    expect(t!.done).toBe(true);
   });
 
   it('queue dedupes, claims and retries', async () => {

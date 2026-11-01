@@ -11,7 +11,58 @@ export interface CompanyRow {
   domains: string[];
   merged_into: string | null;
   needs_review: boolean;
+  approval: ClientApproval;
   created_at: string;
+}
+
+export type ClientApproval = 'pending' | 'approved' | 'rejected';
+
+/** v_client_queue: one row per client with development/bulk conversations. */
+export interface ClientQueueRow {
+  id: string;
+  name: string;
+  city: string | null;
+  country: string | null;
+  region: string | null;
+  domains: string[];
+  approval: ClientApproval;
+  approval_at: string | null;
+  tracked_threads: number;
+  dev_threads: number;
+  bulk_threads: number;
+  mixed_threads: number;
+  awaiting_reply: number;
+  read_threads: number;
+  email_count: number;
+  first_at: string | null;
+  last_at: string | null;
+  contact_count: number;
+}
+
+/** v_thread_brief: a conversation summarised from its first and last email (no AI needed). */
+export interface ThreadBriefRow {
+  id: string;
+  company_id: string | null;
+  mailbox_id: string;
+  mailbox_email: string | null;
+  gmail_thread_id: string;
+  subject: string | null;
+  category: ThreadCategory;
+  reply_state: ReplyState | null;
+  summary: string | null;
+  extracted_through: string | null;
+  first_message_at: string | null;
+  last_message_at: string | null;
+  email_count: number;
+  first_from_name: string | null;
+  first_from_email: string | null;
+  first_snippet: string | null;
+  first_reason: string | null;
+  company_guess: string | null;
+  last_from_name: string | null;
+  last_from_email: string | null;
+  last_direction: 'inbound' | 'outbound' | 'internal' | null;
+  last_snippet: string | null;
 }
 
 export interface TeamMemberRow {

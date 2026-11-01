@@ -21,6 +21,7 @@ export default async function HomePage() {
     supabase.from('v_non_moving').select('id', { count: 'exact', head: true }),
     supabase.from('bulk_order').select('id', { count: 'exact', head: true }).not('status', 'in', '(completed,cancelled)'),
   ]);
+  const { count: waitingClients } = await supabase.from('v_client_queue').select('id', { count: 'exact', head: true }).eq('approval', 'pending');
   const rows = (needs.data ?? []) as NeedsReplyRow[];
   const awaiting = rows.filter((r) => r.reply_state === 'awaiting').length;
   const byStage = new Map<string, number>();
@@ -45,6 +46,14 @@ export default async function HomePage() {
         title="Needs reply"
         detail={awaiting === 0 ? 'Every customer email that needs an answer has one.' : `${awaiting} customer ${awaiting === 1 ? 'email is' : 'emails are'} waiting on GRC. Reply time: ${settings.reply_sla_minutes} min in working hours.`}
       />
+      {(waitingClients ?? 0) > 0 && (
+        <Link href="/approvals" className="mx-6 mt-6 flex items-center justify-between gap-3 rounded-lg border border-mustard/30 bg-mustard-soft px-4 py-3 text-[13.5px] text-mustard hover:border-mustard/60 lg:mx-8">
+          <span>
+            <span className="font-semibold">{waitingClients} {waitingClients === 1 ? 'client is' : 'clients are'} waiting for approval.</span> Their emails aren’t tracked until you approve them.
+          </span>
+          <span className="font-medium">Review clients</span>
+        </Link>
+      )}
       <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:p-8">
         <Panel>
           {rows.length === 0 ? (

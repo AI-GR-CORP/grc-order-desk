@@ -12,7 +12,7 @@ export default async function DevelopmentPage({ searchParams }: { searchParams: 
   const [rows, settings, companies] = await Promise.all([
     fetchAll<DevItemView>((a, b) => supabase.from('v_dev_items').select('*').order('id').range(a, b)),
     getSettings(supabase),
-    fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).order('name').range(a, b)),
+    fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).eq('approval', 'approved').order('name').range(a, b)),
   ]);
   const thumbnails = await getThumbnails(rows.map((r) => r.primary_thread_id ?? ''));
   return (

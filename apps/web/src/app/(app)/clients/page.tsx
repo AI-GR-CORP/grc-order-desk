@@ -22,13 +22,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const { q } = await searchParams;
   const supabase = await createSupabase();
   const rows = await fetchAll<Overview>((a, b) => {
-    let query = supabase.from('v_company_overview').select('*');
+    let query = supabase.from('v_company_overview').select('*').eq('approval', 'approved');
     if (q?.trim()) query = query.ilike('name', `%${q.trim().replace(/[%_]/g, '')}%`);
     return query.order('awaiting_reply', { ascending: false }).order('last_activity_at', { ascending: false, nullsFirst: false }).range(a, b);
   });
   return (
     <>
-      <PageHeader title="Clients" detail={`${rows.length} customers`} />
+      <PageHeader title="Clients" detail={`${rows.length} approved customers. New ones are approved under New clients.`} />
       <div className="p-6 lg:p-8">
         <form className="mb-4 max-w-sm">
           <input name="q" defaultValue={q} type="search" placeholder="Find a customer" className={inputClass} aria-label="Find a customer" />

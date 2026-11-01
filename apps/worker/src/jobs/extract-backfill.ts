@@ -3,14 +3,13 @@ import type { Ctx } from '../context';
 import { getKnowledgeProfile, getSettings } from '../db';
 import { NonRetryableError } from '../errors';
 import { gmailFor, loadMailbox } from '../gmail-session';
-import { resolveThreadCompany } from '../pipeline/companies';
 import { extractThread } from '../pipeline/extract';
 import { recomputeReply } from '../pipeline/reply';
 import { ensureThumbnails } from '../pipeline/thumbnails';
 import { mapLimit } from '../util';
 
 /**
- * Extracts every tracked thread after the directory review. Threads of the SAME company run one
+ * Re-reads every tracked thread of APPROVED clients. Threads of the SAME company run one
  * after another (so the model sees items created by earlier threads and doesn't duplicate them);
  * different companies run in parallel.
  */
@@ -24,18 +23,15 @@ export async function runExtractBackfill(ctx: Ctx, mailboxId: string): Promise<v
 
   await sql`update mailbox set backfill_stage = 'extracting' where id = ${mb.id}`;
 
-  const rows = await sql<{ id: string; company_id: string | null }[]>`
+  const rows = await sql<{ id: string; company_id: string }[]>`
     select id, company_id from email_thread
     where mailbox_id = ${mb.id} and category in ('development','bulk','mixed')
+      and company_id in (select id from company where approval = 'approved')
       and (extracted_through is null or extracted_through < last_message_at)
     order by first_message_at`;
 
   const groups = new Map<string, string[]>();
-  const orphans: string[] = [];
-  for (const r of rows) {
-    if (!r.company_id) orphans.push(r.id);
-    else groups.set(r.company_id, [...(groups.get(r.company_id) ?? []), r.id]);
-  }
+  for (const r of rows) groups.set(r.company_id, [...(groups.get(r.company_id) ?? []), r.id]);
 
   const total = rows.length;
   let done = 0;
@@ -54,11 +50,6 @@ export async function runExtractBackfill(ctx: Ctx, mailboxId: string): Promise<v
   await mapLimit([...groups.values()], config().AI_CONCURRENCY, async (ids) => {
     for (const id of ids) await one(id);
   });
-  // Threads without a company: earlier extractions may have created it by now.
-  for (const id of orphans) {
-    await resolveThreadCompany(sql, settings, id);
-    await one(id);
-  }
 
   await sql`
     update mailbox set backfill_stage = 'done',

@@ -20,7 +20,7 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
     supabase.from('mailbox').select('email').eq('id', t.mailbox_id).maybeSingle(),
     t.company_id ? supabase.from('company').select('id, name').eq('id', t.company_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from('item_thread').select('dev_item_id, bulk_order_id').eq('thread_id', id),
-    fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).order('name').range(a, b)),
+    fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).neq('approval', 'rejected').order('name').range(a, b)),
     supabase.from('attachment').select('message_id, filename, kind, size_bytes, inline').neq('kind', null),
   ]);
   const msgs = (messages.data ?? []) as MessageRow[];

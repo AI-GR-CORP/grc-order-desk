@@ -7,6 +7,7 @@ import { extractThread } from './extract';
 import { ingestThread } from './ingest';
 import { recomputeReply } from './reply';
 import { ensureThumbnails } from './thumbnails';
+import { isThreadClientApproved } from './approval';
 import { triageMessages, updateThreadCategory } from './triage';
 
 export interface ProcessOptions {
@@ -40,7 +41,8 @@ export async function processThread(
   const category = await updateThreadCategory(ctx.sql, ing.threadId);
   await resolveThreadCompany(ctx.sql, settings, ing.threadId);
 
-  if (opts.extract && TRACKED_CATEGORIES.includes(category)) {
+  // Only clients an owner approved are read in depth (and cost AI tokens).
+  if (opts.extract && TRACKED_CATEGORIES.includes(category) && (await isThreadClientApproved(ctx.sql, ing.threadId))) {
     const [t] = await ctx.sql<{ stale: boolean }[]>`
       select (extracted_through is null or extracted_through < last_message_at) as stale
       from email_thread where id = ${ing.threadId}`;

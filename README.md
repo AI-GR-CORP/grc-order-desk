@@ -84,8 +84,8 @@ Updating: `git pull && docker compose up -d --build`.
 
 1. Sign in to the dashboard as an owner → **Settings → Connect Gmail** → sign in **as the mailbox being tracked** → allow read access.
 2. The worker imports ~1,000 recent emails, sorts them, and builds a customer list and glossary (10–30 min). Reply tracking starts as soon as that finishes.
-3. **Review** page: rename/merge companies, set regions, correct the "what the AI knows" notes.
-4. Press **Fill the tables**. Every tracked thread is read; rows appear as it goes.
+3. **Review** page: correct the "what the AI knows" notes (team, product codes, brands).
+4. **New clients** page: approve the clients you want tracked, one card per client with all its conversations. Each approval reads that client's threads straight away; rows appear on Development and Bulk. Ignored clients are never read.
 
 ### 7. Old spreadsheet and accuracy check (optional but recommended)
 
@@ -120,6 +120,10 @@ What makes it accurate on GRC's mail (no fine-tuning is involved):
 5. `pnpm eval` scores the result against the spreadsheet before go-live.
 
 Settings → AI usage shows the real monthly cost. To cut cost later, set `extract` to `claude-sonnet-5-5`.
+
+## Client approval
+
+Nothing is read in depth until an owner approves the client. New senders' development/bulk emails are only sorted (cheap) and listed under **New clients**, with every conversation's first and latest email, what it's about, and whether it's waiting for a reply. Until approval: no extraction, no reply alerts, no rows. Approve one client or select several; "Ignore" hides a client for good (it can be restored from the Ignored tab). Conversations from personal Gmail/Yahoo addresses that couldn't be matched appear at the bottom: create a client from them, add them to an existing client, or mark them as not client work.
 
 ## Day to day
 

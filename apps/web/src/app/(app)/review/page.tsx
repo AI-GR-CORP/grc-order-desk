@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import type { MailboxStatusRow } from '@grc/core';
-import { CompanyReviewRow, KnowledgeEditor, StartExtraction } from '@/components/review';
-import { Empty, PageHeader, Panel } from '@/components/ui';
+import { KnowledgeEditor } from '@/components/review';
+import { Empty, LinkButton, PageHeader, Panel } from '@/components/ui';
 import { getAppUser } from '@/lib/auth';
-import { fetchAll, getMailboxes } from '@/lib/data';
+import { getMailboxes } from '@/lib/data';
 import { createSupabase } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Review' };
 
-function ImportStatus({ mb, tracked }: { mb: MailboxStatusRow; tracked: number }) {
+function ImportStatus({ mb }: { mb: MailboxStatusRow }) {
   const p = (mb.backfill_progress ?? {}) as { extracted?: number; toExtract?: number; messages?: number; threads?: number };
   switch (mb.backfill_stage) {
     case 'pending':
@@ -19,35 +19,31 @@ function ImportStatus({ mb, tracked }: { mb: MailboxStatusRow; tracked: number }
     case 'discovery':
       return <p>Building the customer list and GRC team list.</p>;
     case 'awaiting_review':
+    case 'extracting':
+    case 'done':
       return (
         <div className="space-y-3">
           <p>
-            The customer list is ready. Check the companies below (rename, set the region, merge duplicates), then fill the tables. Reply
-            tracking is already running.
+            The mailbox is read and the customer list is ready. Approve the clients you want tracked: each approved client’s conversations are
+            read straight away and appear on the Development and Bulk pages. New emails are checked every 5 minutes.
           </p>
-          <StartExtraction mailboxId={mb.id} threads={tracked} />
+          <LinkButton href="/approvals" variant="primary">Go to New clients</LinkButton>
         </div>
       );
-    case 'extracting':
-      return <p>Filling the tables: {p.extracted ?? 0} of {p.toExtract ?? '…'} threads read.</p>;
     default:
-      return <p>All threads are read. New emails are processed every 5 minutes.</p>;
+      return null;
   }
 }
 
 export default async function ReviewPage() {
   const supabase = await createSupabase();
   const user = await getAppUser();
-  const [mailboxes, companies, allCompanies, threads, tracked, profiles] = await Promise.all([
+  const [mailboxes, threads, profiles] = await Promise.all([
     getMailboxes(supabase),
-    supabase.from('v_company_overview').select('id, name, region, city, domains, contact_count, thread_count').eq('needs_review', true).order('thread_count', { ascending: false }).limit(200),
-    fetchAll<{ id: string; name: string }>((a, b) => supabase.from('company').select('id, name').is('merged_into', null).order('name').range(a, b)),
-    supabase.from('email_thread').select('id, subject, category, ai_confidence, company_id').eq('needs_review', true).in('category', ['development', 'bulk', 'mixed']).order('last_message_at', { ascending: false }).limit(100),
-    supabase.from('email_thread').select('id', { count: 'exact', head: true }).in('category', ['development', 'bulk', 'mixed']),
+    supabase.from('email_thread').select('id, subject, category, ai_confidence, company_id').eq('needs_review', true).in('category', ['development', 'bulk', 'mixed']).not('company_id', 'is', null).order('last_message_at', { ascending: false }).limit(100),
     supabase.from('knowledge_profile').select('version, active, created_at, content').order('version', { ascending: false }).limit(10),
   ]);
   const active = (profiles.data ?? []).find((p) => p.active);
-  const reviewCompanies = (companies.data ?? []) as Parameters<typeof CompanyReviewRow>[0]['company'][];
 
   return (
     <>
@@ -55,19 +51,9 @@ export default async function ReviewPage() {
       <div className="space-y-6 p-6 lg:p-8">
         {mailboxes.map((mb) => (
           <Panel key={mb.id} title={`Mailbox import: ${mb.email}`}>
-            <div className="p-4 text-[13.5px]"><ImportStatus mb={mb} tracked={tracked.count ?? 0} /></div>
+            <div className="p-4 text-[13.5px]"><ImportStatus mb={mb} /></div>
           </Panel>
         ))}
-
-        <Panel title={`New customers to check (${reviewCompanies.length})`}>
-          {reviewCompanies.length === 0 ? (
-            <Empty title="Nothing to check">New customers found in email show up here first.</Empty>
-          ) : (
-            <ul className="divide-y divide-line-2">
-              {reviewCompanies.map((c) => <CompanyReviewRow key={c.id} company={c} others={allCompanies} />)}
-            </ul>
-          )}
-        </Panel>
 
         <Panel title={`Threads the AI wasn’t sure about (${threads.data?.length ?? 0})`}>
           {(threads.data ?? []).length === 0 ? (

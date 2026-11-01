@@ -17,7 +17,8 @@ export async function runSync(ctx: Ctx, mailboxId: string): Promise<void> {
   const settings = await getSettings(sql);
   const profile = await getKnowledgeProfile(sql);
   const api = gmailFor(sql, mb);
-  const extract = mb.backfill_stage === 'done';
+  // Extraction runs once the learning pass is done; process-thread only reads approved clients.
+  const extract = ['awaiting_review', 'extracting', 'done'].includes(mb.backfill_stage);
 
   const threadIds = new Set<string>();
   let latest = mb.history_id;

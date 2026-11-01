@@ -6,6 +6,7 @@ import { cx } from '@/lib/format';
 
 const LINKS = [
   { href: '/', label: 'Needs reply', count: 'needsReply' as const },
+  { href: '/approvals', label: 'New clients', count: 'approvals' as const },
   { href: '/development', label: 'Development' },
   { href: '/bulk', label: 'Bulk orders' },
   { href: '/clients', label: 'Clients' },
@@ -18,7 +19,7 @@ export function NavRail({
   email,
   sync,
 }: {
-  counts: { needsReply: number; review: number };
+  counts: { needsReply: number; approvals: number; review: number };
   email: string;
   sync: ReactNode;
 }) {
@@ -56,7 +57,7 @@ export function NavRail({
                 <span
                   className={cx(
                     'min-w-5 rounded px-1.5 text-center text-[11.5px] font-semibold',
-                    l.count === 'needsReply' ? 'bg-red text-white' : 'bg-white/15 text-white',
+                    l.count === 'needsReply' ? 'bg-red text-white' : l.count === 'approvals' ? 'bg-mustard text-white' : 'bg-white/15 text-white',
                   )}
                 >
                   {n}
