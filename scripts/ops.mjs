@@ -660,7 +660,22 @@ async function waitForVercel(s, sha) {
 
 async function cmdDeploy({ redeploy, fast }) {
   const s = loadSecrets();
+  if (existsSync(join(ROOT, '.git', 'rebase-apply'))) {
+    die('A patch is only half-applied (git am stopped partway).\n  Run: git am --abort\n  Then apply the patch again and look for errors.');
+  }
   if (git(['status', '--porcelain'])) die('There are uncommitted changes. Commit them first (git status).');
+  if (!redeploy) {
+    // Nothing new to send means a patch didn't go in: say so instead of "deploying" the same code.
+    spawnSync('git', ['fetch', '--quiet'], { cwd: ROOT });
+    const ahead = Number(git(['rev-list', '--count', '@{u}..HEAD']) || '0');
+    if (ahead === 0) {
+      die(
+        `Nothing new to deploy: your code is the same as what is already live.\n  Latest commit: "${git(['log', '-1', '--format=%s'])}"\n` +
+          '  If you just applied a patch, it did not go in. Run the git am command again and read its output.',
+      );
+    }
+    ok(`${ahead} new commit${ahead > 1 ? 's' : ''} to deploy: ${git(['log', '-1', '--format=%s'])}`);
+  }
   if (redeploy) {
     run('git', ['commit', '--allow-empty', '-m', 'chore: redeploy']);
   } else if (!fast) {
