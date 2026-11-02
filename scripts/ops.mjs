@@ -777,7 +777,8 @@ function cmdPictures(apply) {
   cmdEnv();
   const report = join(ROOT, 'pictures-check.html');
   section(apply ? 'Importing the sheet with its pictures' : 'Checking the sheet\'s pictures (nothing is changed)');
-  run('pnpm', ['--filter', '@grc/worker', 'exec', 'tsx', '--env-file=.env', 'src/scripts/import-pictures.ts', abs, report, ...(apply ? ['--apply'] : [])]);
+  // Through the worker's package script: `pnpm exec` would read --env-file as its own option.
+  run('pnpm', ['--filter', '@grc/worker', 'run', 'import-pictures', abs, report, ...(apply ? ['--apply'] : [])]);
   if (!apply) {
     if (process.platform === 'darwin') spawnSync('open', [report]);
     console.log(`\n  Look through the check page. If every picture is on the right row, run:\n  ${c.b(`pnpm ops pictures "${file}" --apply`)}\n`);

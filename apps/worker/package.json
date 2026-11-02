@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "import-sheet": "tsx --env-file=.env src/scripts/import-sheet.ts",
+    "import-pictures": "tsx --env-file=.env src/scripts/import-pictures.ts",
     "eval": "tsx --env-file=.env src/scripts/eval.ts"
   },
   "dependencies": {
