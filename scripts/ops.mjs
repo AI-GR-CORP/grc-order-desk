@@ -12,6 +12,7 @@
  *   pnpm ops redeploy             redeploy the current code (after changing Vercel env vars)
  *   pnpm ops worker               start the worker (keeps the Mac awake)
  *   pnpm ops reclassify [--apply]  re-sort conversations: Development / Bulk + topics (shows the cost first)
+ *   pnpm ops pictures <xlsx> [--apply]  bring the sheet's rows and pictures in (check page first)
  *
  * Secrets live ONLY in .env.local at the repo root (gitignored, mode 600).
  * This script never prints a secret value: only names, lengths and check results.
@@ -21,7 +22,7 @@ import { createDecipheriv } from 'node:crypto';
 import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -500,6 +501,18 @@ async function cmdCheck({ quick = false } = {}) {
         if (n('filtered', false)) warn(`${n('filtered', false)} emails are in Inbox → Filtered out. Glance through them so no customer mail is missed.`);
       }
     }
+    const [{ has_pics }] = await sql`select to_regclass('public.row_picture') is not null as has_pics`;
+    if (has_pics) {
+      const [pc] = await sql`
+        select count(distinct coalesce(dev_item_id, bulk_order_id, thread_id))::int as rows,
+               count(*) filter (where source = 'sheet')::int as sheet, count(*) filter (where source = 'email')::int as email,
+               count(*) filter (where source = 'upload')::int as upload
+        from row_picture where not hidden`;
+      if (pc.rows) ok(`Pictures: ${pc.rows} rows have pictures (${pc.sheet} from your sheet, ${pc.email} from emails, ${pc.upload} added by hand)`);
+      else warn('No row pictures yet: run pnpm ops pictures <your sheet.xlsx> to bring in the sheet with its pictures');
+      const [pj] = await sql`select backfill_progress->'pictures' as p from mailbox where backfill_progress ? 'pictures' limit 1`;
+      if (pj?.p && !pj.p.finishedAt) ok(`Email pictures: ${pj.p.done ?? 0} of ${pj.p.total ?? '?'} conversations done`);
+    }
     const [cls] = await sql`select backfill_progress->'classify' as p from mailbox where backfill_progress ? 'classify' limit 1`;
     if (cls?.p && !cls.p.finishedAt) {
       const b = cls.p.batch;
@@ -755,6 +768,24 @@ async function cmdReclassify(apply) {
   }
 }
 
+/** GRC's spreadsheet into the dashboard, with every picture on its row. Check page first; --apply writes it. */
+function cmdPictures(apply) {
+  const file = process.argv.slice(3).find((a) => !a.startsWith('--'));
+  if (!file) die('Usage: pnpm ops pictures ~/Downloads/customer_portfolio_2025.xlsx [--apply]\n  (in Google Sheets: File → Download → Microsoft Excel (.xlsx))');
+  const abs = resolve(file.replace(/^~(?=$|\/)/, homedir()));
+  if (!existsSync(abs)) die(`File not found: ${abs}`);
+  cmdEnv();
+  const report = join(ROOT, 'pictures-check.html');
+  section(apply ? 'Importing the sheet with its pictures' : 'Checking the sheet\'s pictures (nothing is changed)');
+  run('pnpm', ['--filter', '@grc/worker', 'exec', 'tsx', '--env-file=.env', 'src/scripts/import-pictures.ts', abs, report, ...(apply ? ['--apply'] : [])]);
+  if (!apply) {
+    if (process.platform === 'darwin') spawnSync('open', [report]);
+    console.log(`\n  Look through the check page. If every picture is on the right row, run:\n  ${c.b(`pnpm ops pictures "${file}" --apply`)}\n`);
+  } else {
+    console.log(`\n  Press Cmd+Shift+R in the dashboard. Email pictures keep arriving while the worker runs.\n`);
+  }
+}
+
 const commands = {
   init: cmdInit,
   env: cmdEnv,
@@ -766,9 +797,10 @@ const commands = {
   redeploy: () => cmdDeploy({ redeploy: true }),
   worker: cmdWorker,
   reclassify: () => cmdReclassify(flag('--apply')),
+  pictures: () => cmdPictures(flag('--apply')),
 };
 if (!commands[cmd]) {
-  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 15).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
+  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 16).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
   process.exit(cmd ? 1 : 0);
 }
 Promise.resolve(commands[cmd]()).catch((e) => die(e.message));

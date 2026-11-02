@@ -91,7 +91,7 @@ export const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'brand', label: 'Brand', width: 124, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
   { key: 'inquiry', label: 'Inquiry', width: 300, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
   { key: 'sample_collected', label: 'Sample collected', width: 136, devField: 'sample_collected', kind: 'select', options: ['YES', 'NO', 'awaited'] },
-  { key: 'picture', label: 'Picture', width: 96 },
+  { key: 'picture', label: 'Picture', width: 150 },
   { key: 'team_status', label: 'Status of Poornima', width: 190, devField: 'team_status', kind: 'longtext' },
   { key: 'brand_status', label: 'Status of brand', width: 164, devField: 'brand_status', kind: 'longtext' },
   { key: 'owner_remark', label: 'Yash remark', width: 184, devField: 'owner_remark', bulkField: 'owner_remark', kind: 'longtext' },

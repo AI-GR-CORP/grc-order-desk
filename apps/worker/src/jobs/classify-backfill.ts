@@ -34,7 +34,8 @@ export async function runClassifyBackfill(ctx: Ctx, job: Job): Promise<void> {
   job.payload.threadIds = ids;
   const done = new Set<string>((job.payload.doneIds as string[] | undefined) ?? []);
   const outcomes: { id: string; o: ClassifyOutcome }[] = [];
-  const progress = () => ({ total: ids.length, done: done.size, changed: outcomes.filter((x) => x.o.changedType).length, toCheck: outcomes.filter((x) => x.o.needsCheck).length });
+  const totalCount = ids.length;
+  const progress = () => ({ total: totalCount, done: done.size, changed: outcomes.filter((x) => x.o.changedType).length, toCheck: outcomes.filter((x) => x.o.needsCheck).length });
   job.payload.progress = progress();
   await save();
   ctx.log.info({ mailboxId, conversations: ids.length }, 'classify: starting');

@@ -5,7 +5,7 @@ import { CountPill, Empty, TitleBar } from '@/components/ui';
 import { UnmatchedSheet, type UnmatchedGroup } from '@/components/unmatched-sheet';
 import { WorkSheet, type ApprovalInfo } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
-import { fetchAll, getMailboxes, getSettings, getThumbnails } from '@/lib/data';
+import { fetchAll, getMailboxes, getSettings, getRowPictures } from '@/lib/data';
 import type { SheetRow } from '@/lib/sheet';
 import { createSupabase } from '@/lib/supabase/server';
 
@@ -98,7 +98,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const approvals: Record<string, ApprovalInfo> = Object.fromEntries(
     list.map((q) => [q.id, { conversations: q.tracked_threads, cost: q.tracked_threads * costPerThread, approvedAt: q.approval_at }]),
   );
-  const thumbnails = await getThumbnails(rows.map((r) => r.thread_id ?? ''));
+  const pictures = await getRowPictures(rows);
 
   return (
     <SheetPage>
@@ -109,7 +109,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         approvals={approvals}
         canApprove={canEdit}
         rows={rows}
-        thumbnails={thumbnails}
+        pictures={pictures}
         labels={settings.column_labels}
         tabs={tabBar}
         empty={

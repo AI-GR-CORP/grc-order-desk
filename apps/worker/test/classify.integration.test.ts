@@ -237,8 +237,8 @@ d('conversation sorting (integration)', () => {
       waiting_on: 'customer',
       latest_customer_email_needs_reply: false,
       handled_by_email: null,
-      dev_items: [{ existing_item_id: null, brand: 'Primark', inquiry: 'Should not appear', product_code: null, colours: null, merchant_name: null, enquiry_date: null, sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: null, next_action: null, stage: 'inquiry_received', summary: 'x', confidence: 0.9 }],
-      bulk_orders: [{ existing_order_id: null, from_dev_item_id: null, brand: 'Primark', product_code: 'SS27-MEN', description: "Men's elastic top quantities", qty_mtrs: 54000, pi_number: null, po_number: '4512', status: 'open', current_stage: null, stages: [], next_action: 'Revise POs', summary: 'Order placed', confidence: 0.9 }],
+      dev_items: [{ existing_item_id: null, picture_files: [], brand: 'Primark', inquiry: 'Should not appear', product_code: null, colours: null, merchant_name: null, enquiry_date: null, sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: null, next_action: null, stage: 'inquiry_received', summary: 'x', confidence: 0.9 }],
+      bulk_orders: [{ existing_order_id: null, picture_files: [], from_dev_item_id: null, brand: 'Primark', product_code: 'SS27-MEN', description: "Men's elastic top quantities", qty_mtrs: 54000, pi_number: null, po_number: '4512', status: 'open', current_stage: null, stages: [], next_action: 'Revise POs', summary: 'Order placed', confidence: 0.9 }],
       confidence: 0.9,
     };
     expect(await mods.extract.extractThread(ctx, settings, '', primark)).toBe(true);

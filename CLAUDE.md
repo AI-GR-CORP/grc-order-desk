@@ -26,6 +26,7 @@ Email tracker for G.R. Corporation (Kanpur, narrow fabrics). Reads ONE Gmail mai
 | Ship committed code | `pnpm ops deploy` (typecheck, tests, build, push, waits for Vercel READY) |
 | Redeploy without code changes | `pnpm ops redeploy` |
 | Start the worker | `pnpm ops worker` (user runs this in their own terminal; it doesn't exit) |
+| Sheet rows + pictures into the dashboard | `pnpm ops pictures ~/Downloads/<sheet>.xlsx` (check page) → `--apply` (ask first) |
 | Re-sort conversations (Development / Bulk + topics) | `pnpm ops reclassify` (count + cost) → `pnpm ops reclassify --apply` (spends AI credit: ask first) |
 | Types / tests | `pnpm typecheck`, `pnpm test` |
 | Dashboard locally | `pnpm --filter @grc/web dev` (http://localhost:3000) |
@@ -70,6 +71,14 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - Attachments and original emails are fetched live from Gmail by `/api/attachments/[id]` and `/api/messages/[id]/original` (read-only scope; GRC users only; served sandboxed). Keep them locked down: no scripts from emails, ever.
 - Doubtful AI answers (confidence < 0.8 or a clue disagrees) get a second opinion from `ai_models.classify_review` (Opus) before saving; if the two disagree, the row is flagged for a person.
 - `pnpm ops check` shows coverage for the last 7 days (customer / filtered / newsletters / dismissed).
+
+## Pictures (one product per row, like GRC's sheet)
+
+- Pictures live in `row_picture`, one row each: a development item, a bulk order, or a conversation without rows. Sources: `sheet` (GRC's spreadsheet, with `sheet_ref` + `sheet_cell`), `email` (an attachment the extraction model named for that product in `picture_files`), `upload` (added in the details panel: file or ⌘V paste, resized in the browser).
+- Never show a conversation's pictures on several products: a row with none of its own falls back to its conversation's email pictures only when that conversation has exactly one row (`getRowPictures` in `apps/web/src/lib/data.ts`).
+- Removing a picture sets `hidden`; it must stay hidden (the AI must not re-add it).
+- `pnpm ops pictures <sheet.xlsx>` writes `pictures-check.html` (every sheet row, its pictures and cells, and where it goes) and opens it; `--apply` imports rows + pictures and queues email pictures for every order conversation. Safe to re-run. `pictures-check.html` contains client pictures: never commit it.
+- Email pictures are made for every order conversation (approved or not; downloads only, no AI cost).
 
 ## Before saying something is done
 `pnpm typecheck && pnpm test`; for UI changes also `pnpm --filter @grc/web build`; for migrations run the integration tests on a local Postgres. Then `pnpm ops deploy` and `pnpm ops check`.

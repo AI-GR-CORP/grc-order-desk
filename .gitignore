@@ -11,3 +11,6 @@ eval-report.json
 *.log
 .vercel/
 .claude/settings.local.json
+
+# Contains client pictures: never commit
+pictures-check.html

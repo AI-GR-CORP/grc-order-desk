@@ -134,11 +134,11 @@ d('worker pipeline (integration)', () => {
       latest_customer_email_needs_reply: true,
       handled_by_email: 'poornima@grcorporation.co.in',
       dev_items: [
-        { existing_item_id: null, brand: 'UCLA', inquiry: '25MM elastic DAISY', product_code: 'DAISY', colours: '4 combos', merchant_name: 'Ravi', enquiry_date: '2026-11-02', sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: 'under development', next_action: 'share price', stage: 'under_development', summary: 'DAISY in development', confidence: 0.9 },
-        { existing_item_id: null, brand: 'UCLA', inquiry: '25MM elastic KAIA', product_code: 'KAIA', colours: '4 combos', merchant_name: 'Ravi', enquiry_date: '2026-11-02', sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: 'under development', next_action: null, stage: 'under_development', summary: 'KAIA in development', confidence: 0.9 },
+        { existing_item_id: null, picture_files: [], brand: 'UCLA', inquiry: '25MM elastic DAISY', product_code: 'DAISY', colours: '4 combos', merchant_name: 'Ravi', enquiry_date: '2026-11-02', sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: 'under development', next_action: 'share price', stage: 'under_development', summary: 'DAISY in development', confidence: 0.9 },
+        { existing_item_id: null, picture_files: [], brand: 'UCLA', inquiry: '25MM elastic KAIA', product_code: 'KAIA', colours: '4 combos', merchant_name: 'Ravi', enquiry_date: '2026-11-02', sample_collected: null, grc_rate: null, sample_dispatch_date: null, courier: null, awb: null, edd: null, brand_status: null, team_status: 'under development', next_action: null, stage: 'under_development', summary: 'KAIA in development', confidence: 0.9 },
       ],
       bulk_orders: [
-        { existing_order_id: null, from_dev_item_id: null, brand: 'US POLO', product_code: 'VH-81', description: 'Waistband elastic', qty_mtrs: 8560, pi_number: 'PI-77', po_number: null, status: 'open', current_stage: 'pi_sent', stages: [{ key: 'pi_sent', value: '20/01/2025', date: '2025-01-20' }, { key: 'not_a_stage', value: 'x', date: null }], next_action: 'Get PI approved', summary: 'PI sent', confidence: 0.8 },
+        { existing_order_id: null, picture_files: [], from_dev_item_id: null, brand: 'US POLO', product_code: 'VH-81', description: 'Waistband elastic', qty_mtrs: 8560, pi_number: 'PI-77', po_number: null, status: 'open', current_stage: 'pi_sent', stages: [{ key: 'pi_sent', value: '20/01/2025', date: '2025-01-20' }, { key: 'not_a_stage', value: 'x', date: null }], next_action: 'Get PI approved', summary: 'PI sent', confidence: 0.8 },
       ],
       confidence: 0.85,
     };
@@ -208,7 +208,7 @@ d('worker pipeline (integration)', () => {
       thread_category: 'bulk',
       company: { name: 'Shori Trends', city: null, country: 'India' },
       dev_items: [],
-      bulk_orders: [{ existing_order_id: null, from_dev_item_id: null, brand: 'Van Heusen', product_code: 'VH-14A', description: 'Elastic', qty_mtrs: 8560, pi_number: null, po_number: null, status: 'open', current_stage: null, stages: [], next_action: 'Send PI', summary: 'PI requested', confidence: 0.9 }],
+      bulk_orders: [{ existing_order_id: null, picture_files: [], from_dev_item_id: null, brand: 'Van Heusen', product_code: 'VH-14A', description: 'Elastic', qty_mtrs: 8560, pi_number: null, po_number: null, status: 'open', current_stage: null, stages: [], next_action: 'Send PI', summary: 'PI requested', confidence: 0.9 }],
     };
     const orders = async () => (await sql<{ n: number }[]>`select count(*)::int as n from bulk_order where company_id = ${co!.id}`)[0]!.n;
 

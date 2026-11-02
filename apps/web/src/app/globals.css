@@ -203,12 +203,17 @@ button, [role="button"], a, select, summary { cursor: pointer; }
 }
 .sheet thead .act { z-index: 4; }
 
+/* Whole picture (artwork strips are wide), on white like the sheet. */
 .sheet .pic img {
-  width: 44px;
-  height: 44px;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 120px;
+  max-height: 76px;
   border: 1px solid var(--color-line);
-  border-radius: 8px;
-  object-fit: cover;
+  border-radius: 6px;
+  background: #fff;
+  object-fit: contain;
 }
 
 /* tabs across the top of the grid */

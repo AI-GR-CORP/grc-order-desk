@@ -6,7 +6,7 @@ import { GridBar, GridCard, ReplyCell, SheetPage, SheetTabs, shortDate } from '@
 import { CountPill, Empty } from '@/components/ui';
 import { WorkSheet, type BulkChecklist } from '@/components/work-sheet';
 import { requireUser } from '@/lib/auth';
-import { fetchAll, getMailboxes, getSettings, getThumbnails } from '@/lib/data';
+import { fetchAll, getMailboxes, getSettings, getRowPictures } from '@/lib/data';
 import { gmailLink } from '@/lib/format';
 import type { SheetRow } from '@/lib/sheet';
 import { createSupabase } from '@/lib/supabase/server';
@@ -55,7 +55,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
       ]}
     />
   );
-  const thumbnails = showOther ? {} : await getThumbnails(rows.map((r) => r.thread_id ?? ''));
+  const pictures = showOther ? {} : await getRowPictures(rows);
 
   return (
     <SheetPage>
@@ -118,7 +118,7 @@ export default async function ClientPage({ params, searchParams }: { params: Pro
           rows={rows}
           bulk={bulk}
           stageDefs={defs}
-          thumbnails={thumbnails}
+          pictures={pictures}
           labels={settings.column_labels}
           tabs={tabs}
           empty={<Empty title="No development or bulk emails yet">They appear here as soon as this client writes about samples or orders.</Empty>}

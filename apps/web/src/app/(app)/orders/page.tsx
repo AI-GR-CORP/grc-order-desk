@@ -2,7 +2,7 @@ import { DEV_STAGE_CLOSED, type BulkOrderView, type BulkStageDefRow } from '@grc
 import { SheetPage, SheetTabs, type TabItem } from '@/components/sheet';
 import { buttonClass, CountPill, Empty, TitleBar } from '@/components/ui';
 import { WorkSheet, type BulkChecklist } from '@/components/work-sheet';
-import { fetchAll, getSettings, getThumbnails } from '@/lib/data';
+import { fetchAll, getSettings, getRowPictures } from '@/lib/data';
 import { isWaiting, type SheetRow } from '@/lib/sheet';
 import { createSupabase } from '@/lib/supabase/server';
 
@@ -42,7 +42,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const current = tabs.find((t) => t.active) ?? tabs[0]!;
   current.active = true;
 
-  const thumbnails = await getThumbnails(current.rows.map((r) => r.thread_id ?? ''));
+  const pictures = await getRowPictures(current.rows);
   const bulk: Record<string, BulkChecklist> = Object.fromEntries(
     bulkRows.map((b) => [
       b.id,
@@ -72,7 +72,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       <WorkSheet
         mode="orders"
         rows={current.rows}
-        thumbnails={thumbnails}
+        pictures={pictures}
         labels={settings.column_labels}
         companies={companies}
         bulk={bulk}

@@ -44,8 +44,8 @@ export async function extractThread(
   const messages = (await loadThreadMessages(sql, threadId)).filter((m) => m.triageCategory !== 'marketing');
   if (messages.length === 0) return false;
 
-  const dev = await sql<{ id: string; brand: string | null; inquiry: string | null; product_code: string | null; stage: string }[]>`
-    select id, brand, inquiry, product_code, stage::text from dev_item
+  const dev = await sql<{ id: string; brand: string | null; inquiry: string | null; product_code: string | null; stage: string; merchant_name: string | null; team_status: string | null }[]>`
+    select id, brand, inquiry, product_code, stage::text, merchant_name, team_status from dev_item
     where (company_id = ${t.company_id} and stage <> 'closed')
        or id in (select dev_item_id from item_thread where thread_id = ${threadId} and dev_item_id is not null)
     order by updated_at desc limit 60`;
@@ -55,7 +55,15 @@ export async function extractThread(
        or id in (select bulk_order_id from item_thread where thread_id = ${threadId} and bulk_order_id is not null)
     order by updated_at desc limit 30`;
   const existing: ExistingItemRef[] = [
-    ...dev.map((d) => ({ id: d.id, kind: 'dev' as const, brand: d.brand, label: d.inquiry?.slice(0, 120) ?? null, product_code: d.product_code, stage: d.stage })),
+    ...dev.map((d) => ({
+      id: d.id,
+      kind: 'dev' as const,
+      brand: d.brand,
+      // Rows from GRC's sheet sometimes have only a picture: describe them by merchant and status.
+      label: d.inquiry?.slice(0, 120) ?? ([d.merchant_name && `merchant ${d.merchant_name}`, d.team_status && `status "${d.team_status.slice(0, 60)}"`].filter(Boolean).join(', ') || null),
+      product_code: d.product_code,
+      stage: d.stage,
+    })),
     ...bulk.map((b) => ({ id: b.id, kind: 'bulk' as const, brand: b.brand, label: b.description?.slice(0, 120) ?? null, product_code: b.product_code, stage: b.current_stage })),
   ];
 

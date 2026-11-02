@@ -252,9 +252,40 @@ export async function applyExtraction(sql: Sql, threadId: string, x: ThreadExtra
     // (Applies once the type is decided by the conversation-level sort or a person.)
     const devItems = decided && category === 'bulk' ? x.dev_items.filter((d) => d.existing_item_id && d.stage === 'converted_to_bulk') : x.dev_items;
     const bulkOrders = decided && category === 'development' ? [] : x.bulk_orders;
-    for (const d of devItems) await upsertDevItem(tx, ctx, d);
-    for (const b of bulkOrders) await upsertBulkOrder(tx, ctx, b);
+    for (const d of devItems) {
+      const id = await upsertDevItem(tx, ctx, d);
+      if (id) await linkEmailPictures(tx, threadId, 'dev', id, d.picture_files);
+    }
+    for (const b of bulkOrders) {
+      const id = await upsertBulkOrder(tx, ctx, b);
+      if (id) await linkEmailPictures(tx, threadId, 'bulk', id, b.picture_files);
+    }
   }));
+}
+
+/**
+ * Puts the pictures the model named onto the item's row. A file name is used only when exactly one
+ * image in the conversation has it (Outlook names pasted pictures image001.png in every email), so
+ * a picture never lands on the wrong product. A picture a person removed stays removed.
+ */
+async function linkEmailPictures(tx: Db, threadId: string, kind: 'dev' | 'bulk', itemId: string, files: readonly string[] | undefined): Promise<void> {
+  const names = [...new Set((files ?? []).map((f) => f.trim().toLowerCase()).filter(Boolean))];
+  if (names.length === 0) return;
+  const hits = await tx<{ id: string; name: string }[]>`
+    select a.id, lower(a.filename) as name
+    from attachment a join email_message m on m.id = a.message_id
+    where m.thread_id = ${threadId} and a.kind = 'image' and lower(a.filename) = any(${names}::text[])`;
+  const byName = new Map<string, string[]>();
+  for (const h of hits) byName.set(h.name, [...(byName.get(h.name) ?? []), h.id]);
+  let position = 100;
+  for (const name of names) {
+    const ids = byName.get(name);
+    if (!ids || ids.length !== 1) continue;
+    await tx`
+      insert into row_picture (dev_item_id, bulk_order_id, source, attachment_id, position)
+      values (${kind === 'dev' ? itemId : null}, ${kind === 'bulk' ? itemId : null}, 'email', ${ids[0]!}, ${position++})
+      on conflict do nothing`;
+  }
 }
 
 export type { Db };

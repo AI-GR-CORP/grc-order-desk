@@ -1,3 +1,4 @@
+import { picSourceLabel, type RowPic } from '@/lib/pictures';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { BULK_STATUSES } from '@grc/core';
@@ -79,16 +80,21 @@ export function EmailLinks({ threadId, emailCount, gmailThreadId, mailboxEmail }
   );
 }
 
-export function Thumbs({ urls }: { urls: string[] }) {
-  if (urls.length === 0) return null;
+export function Thumbs({ pics }: { pics: RowPic[] }) {
+  if (pics.length === 0) return null;
   return (
-    <div className="flex justify-center gap-1.5">
-      {urls.slice(0, 2).map((src) => (
-        <a key={src} href={src} target="_blank" rel="noreferrer">
+    <div className="flex items-center justify-center gap-1.5">
+      {pics.slice(0, 1).map((p, i) => (
+        <a key={p.id ?? `${p.thumb}-${i}`} href={p.full} target="_blank" rel="noreferrer" title={picSourceLabel(p)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="Photo from the customer's email" />
+          <img src={p.thumb} alt={picSourceLabel(p)} />
         </a>
       ))}
+      {pics.length > 1 && (
+        <span className="text-[12px] font-medium text-muted" title={`${pics.length} pictures: open the row to see all`}>
+          +{pics.length - 1}
+        </span>
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import {
 import { EditableCell } from './editable-cell';
 import { ariaSort, ColumnsMenu, SortHeader, useColumns, type SortState } from './grid-controls';
 import { RowPanel } from './row-panel';
+import type { RowPic } from '@/lib/pictures';
 import { TypeCell } from './type-cell';
 import { BulkStatusText, GridBar, GridCard, ReplyCell, SearchBox, shortDate, Thumbs, ToggleChip } from './sheet';
 import { Button, inputClass } from './ui';
@@ -50,7 +51,7 @@ export interface ApprovalInfo {
 
 interface Props {
   rows: SheetRow[];
-  thumbnails: Record<string, string[]>;
+  pictures: Record<string, RowPic[]>;
   labels: Record<string, string>;
   mode: GridMode;
   approvalTab?: 'pending' | 'approved' | 'rejected';
@@ -85,7 +86,7 @@ function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
  * The main grid. One header row per client with their rows underneath; the Inquiry column stays
  * in view while scrolling sideways and opens a details panel; Open and Gmail stay pinned on the right.
  */
-export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approvals, canApprove, companies, bulk, stageDefs, tabs, note, empty }: Props) {
+export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals, canApprove, companies, bulk, stageDefs, tabs, note, empty }: Props) {
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
   const [onlyCheck, setOnlyCheck] = useState(false);
@@ -264,7 +265,7 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
                             {c.key === 'inquiry' ? (
                               <InquiryCell r={r} onOpen={() => setOpenId(r.row_id)} />
                             ) : (
-                              <Cell col={c} r={r} thumbs={r.thread_id ? thumbnails[r.thread_id] ?? [] : []} stepLabel={stepLabel(r)} />
+                              <Cell col={c} r={r} pics={pictures[r.row_id] ?? []} stepLabel={stepLabel(r)} />
                             )}
                           </td>
                         ))}
@@ -339,7 +340,7 @@ export function WorkSheet({ rows, thumbnails, labels, mode, approvalTab, approva
           labels={labels}
           checklist={openRow.source === 'bulk' && openRow.item_id ? bulk?.[openRow.item_id] : undefined}
           stageDefs={stageDefs}
-          thumbs={openRow.thread_id ? thumbnails[openRow.thread_id] ?? [] : []}
+          pictures={pictures[openRow.row_id] ?? []}
           onClose={closePanel}
           approveSlot={
             canApprove && openRow.company_id && openRow.company_approval === 'pending' ? (
@@ -470,10 +471,10 @@ function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
 }
 
 /** Any other cell. Rows that are items or orders can be typed into; conversations are read-only. */
-function Cell({ col, r, thumbs, stepLabel }: { col: SheetColumn; r: SheetRow; thumbs: string[]; stepLabel?: string | null }) {
+function Cell({ col, r, pics, stepLabel }: { col: SheetColumn; r: SheetRow; pics: RowPic[]; stepLabel?: string | null }) {
   switch (col.key) {
     case 'picture':
-      return <Thumbs urls={thumbs} />;
+      return <Thumbs pics={pics} />;
     case 'type':
       return <TypeCell info={typeInfo(r)} />;
     case 'reply':

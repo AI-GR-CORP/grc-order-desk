@@ -11,13 +11,15 @@ import { TypeBadges } from './type-cell';
 import { buttonClass, inputClass } from './ui';
 import type { BulkChecklist, StageDef } from './work-sheet';
 import { TypeEditor } from './type-cell';
+import { RowPictures } from './row-pictures';
+import { rowTarget, type RowPic } from '@/lib/pictures';
 import { typeInfo } from '@/lib/sheet';
 
 /** Everything about one row, in a side panel: every column as a labelled field you can edit. */
 export function RowPanel({
   row,
   labels,
-  thumbs,
+  pictures,
   onClose,
   approveSlot,
   checklist,
@@ -25,7 +27,7 @@ export function RowPanel({
 }: {
   row: SheetRow;
   labels: Record<string, string>;
-  thumbs: string[];
+  pictures: RowPic[];
   onClose: () => void;
   approveSlot?: React.ReactNode;
   checklist?: BulkChecklist;
@@ -117,19 +119,7 @@ export function RowPanel({
             </section>
           )}
 
-          {thumbs.length > 0 && (
-            <section>
-              <h3 className="mb-2 text-[13px] font-semibold text-muted">Photos from the emails</h3>
-              <div className="flex flex-wrap gap-2">
-                {thumbs.map((src) => (
-                  <a key={src} href={src} target="_blank" rel="noreferrer" className="block">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt="Photo from the customer's email" className="size-24 rounded-lg border border-line object-cover" />
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
+          <RowPictures pictures={pictures} target={rowTarget(row)} />
 
           {row.summary && (
             <section>

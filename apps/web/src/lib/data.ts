@@ -2,6 +2,8 @@ import 'server-only';
 import { parseSettings, type AppSettings, type MailboxStatusRow } from '@grc/core';
 import { createAdmin } from './supabase/admin';
 import { createSupabase } from './supabase/server';
+import { rowTarget, type RowPic } from './pictures';
+import type { SheetRow } from './sheet';
 
 type Supabase = Awaited<ReturnType<typeof createSupabase>>;
 
@@ -35,6 +37,73 @@ export async function getMailboxes(supabase: Supabase): Promise<MailboxStatusRow
     .select('id, email, status, backfill_stage, backfill_progress, backfill_target, last_synced_at, last_error')
     .order('created_at');
   return (data ?? []) as MailboxStatusRow[];
+}
+
+/**
+ * Pictures per sheet row: GRC's sheet pictures, email pictures linked to that product, and pictures
+ * people added. A row with none of its own shows its conversation's email pictures only when that
+ * conversation has just this one row, so a picture is never shown on the wrong product.
+ */
+export async function getRowPictures(rows: SheetRow[]): Promise<Record<string, RowPic[]>> {
+  const admin = createAdmin();
+  const out: Record<string, RowPic[]> = {};
+  const byKey = new Map<string, string>(); // "dev:<id>" → row_id
+  for (const r of rows) {
+    const t = rowTarget(r);
+    if (t) byKey.set(`${t.kind}:${t.id}`, r.row_id);
+  }
+  type Rec = { id: string; dev_item_id: string | null; bulk_order_id: string | null; thread_id: string | null; source: RowPic['source']; thumb_path: string | null; full_path: string | null; sheet_cell: string | null; attachment: { thumbnail_path: string | null } | null };
+  const recs: Rec[] = [];
+  const groups: [string, 'dev_item_id' | 'bulk_order_id' | 'thread_id'][] = [['dev', 'dev_item_id'], ['bulk', 'bulk_order_id'], ['thread', 'thread_id']];
+  for (const [kind, col] of groups) {
+    const ids = [...byKey.keys()].filter((k) => k.startsWith(`${kind}:`)).map((k) => k.slice(kind.length + 1));
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data } = await admin
+        .from('row_picture')
+        .select('id, dev_item_id, bulk_order_id, thread_id, source, thumb_path, full_path, sheet_cell, attachment:attachment_id(thumbnail_path)')
+        .in(col, ids.slice(i, i + 150))
+        .eq('hidden', false)
+        .order('position')
+        .order('created_at');
+      recs.push(...((data ?? []) as unknown as Rec[]));
+    }
+  }
+  const paths = new Set<string>();
+  const usable = recs
+    .map((p) => {
+      const thumb = p.thumb_path || p.attachment?.thumbnail_path || '';
+      const full = p.full_path || thumb;
+      return thumb ? { p, thumb, full } : null;
+    })
+    .filter(Boolean) as { p: Rec; thumb: string; full: string }[];
+  for (const u of usable) {
+    paths.add(u.thumb);
+    paths.add(u.full);
+  }
+  const signed = new Map<string, string>();
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += 500) {
+    const { data } = await admin.storage.from('thumbnails').createSignedUrls(list.slice(i, i + 500), 3600);
+    for (const s of data ?? []) if (s.path && s.signedUrl) signed.set(s.path, s.signedUrl);
+  }
+  for (const { p, thumb, full } of usable) {
+    const key = p.dev_item_id ? `dev:${p.dev_item_id}` : p.bulk_order_id ? `bulk:${p.bulk_order_id}` : `thread:${p.thread_id}`;
+    const rowId = byKey.get(key);
+    const t = signed.get(thumb);
+    if (!rowId || !t) continue;
+    (out[rowId] ??= []).push({ id: p.id, thumb: t, full: signed.get(full) ?? t, source: p.source, cell: p.sheet_cell });
+  }
+
+  // Fallback: the conversation's email pictures, only where they can't belong to another row.
+  const rowsPerThread = new Map<string, number>();
+  for (const r of rows) if (r.thread_id) rowsPerThread.set(r.thread_id, (rowsPerThread.get(r.thread_id) ?? 0) + 1);
+  const need = rows.filter((r) => !out[r.row_id]?.length && r.thread_id && rowsPerThread.get(r.thread_id) === 1);
+  const threadPics = await getThumbnails(need.map((r) => r.thread_id!));
+  for (const r of need) {
+    const urls = threadPics[r.thread_id!];
+    if (urls?.length) out[r.row_id] = urls.map((u) => ({ id: null, thumb: u, full: u, source: 'thread', cell: null }));
+  }
+  return out;
 }
 
 /** Signed thumbnail URLs per thread id (newest first, max 3 per thread). */

@@ -38,6 +38,7 @@ export const DevItemSchema = z.object({
   team_status: maybe.describe('Short status of where GRC stands, in the style of the sheet: "sample ready on 26 oct", "share the prices"'),
   next_action: maybe.describe('The next concrete thing GRC must do, or null'),
   stage: z.enum(DEV_STAGE_KEYS),
+  picture_files: z.array(text).describe('File names (from the Attachments lines) of photos, artwork or swatches that show THIS item. Empty if none or unsure.'),
   summary: text.describe('1–3 sentences on this item across the thread'),
   confidence: z.number().describe('0 to 1'),
 });
@@ -61,6 +62,7 @@ export const BulkOrderSchema = z.object({
   status: z.enum(BULK_STATUS_KEYS),
   current_stage: maybe.describe('Checklist key of the latest completed step'),
   stages: z.array(BulkStageValueSchema),
+  picture_files: z.array(text).describe('File names (from the Attachments lines) of photos or artwork that show THIS order. Empty if none or unsure.'),
   next_action: maybe,
   summary: text,
   confidence: z.number().describe('0 to 1'),

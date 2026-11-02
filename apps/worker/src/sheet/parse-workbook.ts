@@ -159,7 +159,7 @@ function headerMap(row: ExcelJS.Row): Map<number, DevField> | null {
   return map.size >= 2 ? map : null;
 }
 
-function parseDevSheet(ws: ExcelJS.Worksheet, tab: string, cfg: TabConfig): SheetDevRow[] {
+function parseDevSheet(ws: ExcelJS.Worksheet, tab: string, cfg: TabConfig, keepRows?: ReadonlySet<number>): SheetDevRow[] {
   const out: SheetDevRow[] = [];
   let headers: Map<number, DevField> | null = null;
   let headerRow = 0;
@@ -193,7 +193,10 @@ function parseDevSheet(ws: ExcelJS.Worksheet, tab: string, cfg: TabConfig): Shee
     }
     const meaningful = (['inquiry', 'brand', 'product_code', 'team_status', 'brand_status', 'owner_remark', 'next_action', 'sample_collected', 'grc_rate', 'awb'] as const)
       .some((f) => fields[f]);
-    if (!meaningful) continue;
+    // A row whose only content is a picture (or a name) is still a product row in GRC's sheet.
+    // (Not when the "company" is really a pasted email signature: long, or with phone numbers.)
+    const plausibleCompany = Boolean(company) && company!.length <= 60 && !/\+?\d[\d\s-]{7,}/.test(company!);
+    if (!meaningful && !(keepRows?.has(r) && plausibleCompany)) continue;
     delete fields.company;
     if (!fields.city && city) fields.city = city;
     if (fields.sample_collected) {
@@ -252,7 +255,12 @@ function parseBulkSheet(ws: ExcelJS.Worksheet, tab: string): SheetBulkOrder[] {
   return orders.map((o) => o.order).filter((o) => Object.keys(o.stages).length > 0);
 }
 
-export async function parseWorkbook(path: string): Promise<{ dev: SheetDevRow[]; bulk: SheetBulkOrder[]; skippedTabs: string[] }> {
+export interface ParseOptions {
+  /** Rows (per tab name, as in the sheet) to keep even without text, e.g. rows that hold a picture. */
+  keepRows?: ReadonlyMap<string, ReadonlySet<number>>;
+}
+
+export async function parseWorkbook(path: string, opts: ParseOptions = {}): Promise<{ dev: SheetDevRow[]; bulk: SheetBulkOrder[]; skippedTabs: string[] }> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(path);
   const dev: SheetDevRow[] = [];
@@ -261,7 +269,7 @@ export async function parseWorkbook(path: string): Promise<{ dev: SheetDevRow[];
   for (const ws of wb.worksheets) {
     const key = ws.name.trim().toLowerCase();
     const tab = ws.name.trim();
-    if (DEV_TABS[key]) dev.push(...parseDevSheet(ws, tab, DEV_TABS[key]));
+    if (DEV_TABS[key]) dev.push(...parseDevSheet(ws, tab, DEV_TABS[key], opts.keepRows?.get(tab)));
     else if (BULK_TABS.has(key)) bulk.push(...parseBulkSheet(ws, tab));
     else skippedTabs.push(tab);
   }

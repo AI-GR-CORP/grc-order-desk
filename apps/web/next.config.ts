@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   output: process.env.NEXT_OUTPUT === 'standalone' ? 'standalone' : undefined,
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   poweredByHeader: false,
+  // Pictures added in the dashboard arrive through a server action (resized in the browser first).
+  experimental: { serverActions: { bodySizeLimit: '6mb' } },
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '*.supabase.co' }],
   },

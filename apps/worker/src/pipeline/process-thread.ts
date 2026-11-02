@@ -47,6 +47,9 @@ export async function processThread(
     if (o) category = o.category as typeof category;
   }
 
+  // Email pictures for every order conversation, approved or not (downloads only, no AI cost).
+  if (TRACKED_CATEGORIES.includes(category)) await ensureThumbnails(ctx, api, ing.threadId);
+
   // Only clients an owner approved are read in depth (and cost AI tokens).
   if (opts.extract && TRACKED_CATEGORIES.includes(category) && (await isThreadClientApproved(ctx.sql, ing.threadId))) {
     const [t] = await ctx.sql<{ stale: boolean }[]>`
@@ -54,7 +57,6 @@ export async function processThread(
       from email_thread where id = ${ing.threadId}`;
     if (opts.forceExtract || t?.stale) {
       await extractThread(ctx, settings, profile, ing.threadId, api);
-      await ensureThumbnails(ctx, api, ing.threadId);
     }
   }
   await recomputeReply(ctx.sql, settings, ing.threadId);
