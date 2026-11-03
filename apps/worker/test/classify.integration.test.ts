@@ -7,6 +7,8 @@ import type { GmailThread } from '@grc/core/gmail';
 import type { ThreadExtraction, ThreadType } from '@grc/core/ai';
 
 const url = process.env.TEST_DATABASE_URL;
+/** Digest fields left empty (tests that don't look at the digest). */
+const NO_DIGEST = { brand: null, points: [], customer_status: null, grc_status: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null };
 const d = url ? describe : describe.skip;
 
 process.env.DATABASE_URL = url ?? 'postgres://unused';
@@ -138,13 +140,24 @@ d('conversation sorting (integration)', () => {
     const settings = await mods.db.getSettings(sql, true);
     expect(await mods.classify.needsClassification(sql, primark)).toBe(true);
 
-    classification = { is_order: true, order_type: 'bulk', topics: [], evidence: 'Kindly proceed with bulk production', confidence: 0.97, reason: 'The customer placed an order with top quantities.' };
+    classification = {
+      ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: [], evidence: 'Kindly proceed with bulk production', confidence: 0.97, reason: 'The customer placed an order with top quantities.',
+      brand: 'PRIMARK', points: ['• New order with top quantities', 'Proceed with bulk production', 'GRC asked to revise POs to $0.078/m', 'x'.repeat(300), 'five', 'six (dropped)'],
+      customer_status: 'Will check the price with the buyer', grc_status: 'Asked to revise POs to $0.078/m', price_quoted: '$0.078/m', enquiry_ref: 'SS27',
+    };
     const o = await mods.classify.classifyThread(ctx, settings, '', primark);
     expect(o).toMatchObject({ category: 'bulk', needsCheck: false });
 
     const [t] = await sql`select category::text, topics, type_needs_check, classified_at is not null as sorted, type_reason from email_thread where id = ${primark}`;
     expect(t).toMatchObject({ category: 'bulk', topics: [], type_needs_check: false, sorted: true });
     expect(t!.type_reason).toContain('Evidence: "Kindly proceed with bulk production"');
+    // The digest: brand, at most 5 short pointers, the latest from each side.
+    const [dg] = await sql`select brand, points, customer_status, grc_status, price_quoted, enquiry_ref from email_thread where id = ${primark}`;
+    expect(dg!.brand).toBe('PRIMARK');
+    expect(dg!.points).toHaveLength(5);
+    expect(dg!.points[0]).toBe('New order with top quantities');
+    expect(dg!.points[3].length).toBeLessThanOrEqual(140);
+    expect(dg).toMatchObject({ customer_status: 'Will check the price with the buyer', grc_status: 'Asked to revise POs to $0.078/m', price_quoted: '$0.078/m', enquiry_ref: 'SS27' });
 
     // The model saw GRC's rules, the whole conversation and the keyword clues.
     expect(lastClassify!.system).toContain('ORDER TYPE: exactly one of these two');
@@ -160,14 +173,14 @@ d('conversation sorting (integration)', () => {
   it('flags a doubtful answer for a person: an answer that contradicts a PO, or a low confidence', async () => {
     const clues = await mods.classify.threadClues(sql, primark);
     const wrong = await mods.classify.applyClassification(sql, primark,
-      { is_order: true, order_type: 'development', topics: [], evidence: 'revise unit price', confidence: 0.9, reason: 'Price discussion.' }, clues);
+      { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: 'revise unit price', confidence: 0.9, reason: 'Price discussion.' }, clues);
     expect(wrong).toMatchObject({ category: 'development', needsCheck: true });
     const [t] = await sql`select type_needs_check, type_reason from email_thread where id = ${primark}`;
     expect(t!.type_needs_check).toBe(true);
     expect(t!.type_reason).toContain('Please check: marked Development, but the emails mention a PO or a bulk order');
 
     const unsure = await mods.classify.applyClassification(sql, primark,
-      { is_order: true, order_type: 'bulk', topics: [], evidence: 'order', confidence: 0.6, reason: 'Probably an order.' }, clues);
+      { ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: [], evidence: 'order', confidence: 0.6, reason: 'Probably an order.' }, clues);
     expect(unsure).toMatchObject({ category: 'bulk', needsCheck: true });
   });
 
@@ -183,7 +196,7 @@ d('conversation sorting (integration)', () => {
     // The AI never changes it again, even when it would answer differently.
     expect(await mods.classify.needsClassification(sql, primark)).toBe(false);
     await mods.classify.applyClassification(sql, primark,
-      { is_order: true, order_type: 'development', topics: [], evidence: '', confidence: 0.99, reason: '' }, []);
+      { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: '', confidence: 0.99, reason: '' }, []);
     const [after] = await sql`select category::text, topics, type_needs_check from email_thread where id = ${primark}`;
     expect(after).toMatchObject({ category: 'bulk', topics: ['payment_followup'], type_needs_check: false });
 
@@ -209,7 +222,7 @@ d('conversation sorting (integration)', () => {
         { from: 'Amila Fernando <amila@triple.holdings>', to: 'yash@grcorporation.co.in', body: 'Need 35MM waistband sample, reference sample sent.', mins: 3000 },
       ]),
     );
-    classification = { is_order: true, order_type: 'development', topics: [], evidence: 'reference sample sent', confidence: 0.95, reason: 'New sample request.' };
+    classification = { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: 'reference sample sent', confidence: 0.95, reason: 'New sample request.' };
     await mods.classify.classifyThread(ctx, settings, '', dev);
     await sql`insert into dev_item (company_id, primary_thread_id, inquiry, source) values (${companyId}, ${dev}, 'AI row', 'ai')`;
     await sql`insert into dev_item (company_id, primary_thread_id, inquiry, owner_remark, source, locked_fields) values (${companyId}, ${dev}, 'Edited row', 'Yash note', 'ai', '{owner_remark}')`;
@@ -257,7 +270,7 @@ d('conversation sorting (integration)', () => {
       ]),
     );
     await sql`update email_thread set category = 'development', classified_at = null where id = ${lab}`;
-    classification = { is_order: true, order_type: 'bulk', topics: ['lab_approval', 'complaint'], evidence: 'BV test report attached for PO 4512', confidence: 0.93, reason: 'Lab report on an order lot.' };
+    classification = { ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: ['lab_approval', 'complaint'], evidence: 'BV test report attached for PO 4512', confidence: 0.93, reason: 'Lab report on an order lot.' };
     const [job] = await sql<{ id: number }[]>`insert into job (kind, mailbox_id, payload) values ('classify_backfill', ${mailboxId}, '{"all": false}') returning id`;
     await mods.job.runClassifyBackfill(ctx, { id: job!.id, kind: 'classify_backfill', mailbox_id: mailboxId, payload: { all: false }, attempts: 1 } as never);
 
@@ -281,8 +294,8 @@ d('conversation sorting (integration)', () => {
     // Sonnet unsure, Opus sure and agreeing: used, not flagged.
     classifyModels.length = 0;
     byModel = {
-      'claude-sonnet-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'plan 40MM boxer elastic', confidence: 0.6, reason: 'Sounds like a new requirement.' },
-      'claude-opus-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'details to follow', confidence: 0.9, reason: 'A new requirement; no order placed yet.' },
+      'claude-sonnet-5-5': { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: 'plan 40MM boxer elastic', confidence: 0.6, reason: 'Sounds like a new requirement.' },
+      'claude-opus-5-5': { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: 'details to follow', confidence: 0.9, reason: 'A new requirement; no order placed yet.' },
     };
     const o1 = await mods.classify.classifyThread(ctx, settings, '', t1);
     expect(classifyModels).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5']);
@@ -299,8 +312,8 @@ d('conversation sorting (integration)', () => {
     );
     classifyModels.length = 0;
     byModel = {
-      'claude-sonnet-5-5': { is_order: true, order_type: 'development', topics: [], evidence: 'plan', confidence: 0.7, reason: 'A plan, not an order.' },
-      'claude-opus-5-5': { is_order: true, order_type: 'bulk', topics: [], evidence: 'plan quantities, confirm capacity', confidence: 0.85, reason: 'Quantities for production.' },
+      'claude-sonnet-5-5': { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: 'plan', confidence: 0.7, reason: 'A plan, not an order.' },
+      'claude-opus-5-5': { ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: [], evidence: 'plan quantities, confirm capacity', confidence: 0.85, reason: 'Quantities for production.' },
     };
     const o2 = await mods.classify.classifyThread(ctx, settings, '', t2);
     expect(o2).toMatchObject({ category: 'bulk', needsCheck: true });
@@ -312,7 +325,7 @@ d('conversation sorting (integration)', () => {
     byModel = {};
     await sql`update email_thread set classified_at = null where id = ${primark}`;
     await sql`update email_thread set category_locked = false, topics_locked = false, type_checked_at = null where id = ${primark}`;
-    classification = { is_order: true, order_type: 'bulk', topics: ['payment_followup'], evidence: 'proceed with bulk production', confidence: 0.97, reason: 'Order placed.' };
+    classification = { ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: ['payment_followup'], evidence: 'proceed with bulk production', confidence: 0.97, reason: 'Order placed.' };
     await mods.classify.classifyThread(ctx, settings, '', primark);
     expect(classifyModels).toEqual(['claude-sonnet-5-5']);
   });

@@ -13,6 +13,7 @@ import {
   COMPANY_LABEL,
   DEFAULT_COLUMNS,
   groupByCompany,
+  groupSubjects,
   isWaiting,
   label,
   needsTypeCheck,
@@ -90,6 +91,8 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
   const [q, setQ] = useState('');
   const [onlyWaiting, setOnlyWaiting] = useState(false);
   const [onlyCheck, setOnlyCheck] = useState(false);
+  const [kind, setKind] = useState<'all' | 'development' | 'bulk'>('all');
+  const [showClosed, setShowClosed] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
   const [limit, setLimit] = useState(GROUPS_PER_PAGE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -102,25 +105,34 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
   const cols = SHEET_COLUMNS.filter((c) => c.key === 'inquiry' || visible.includes(c.key));
   const waitingCount = rows.filter(isWaiting).length;
   const checkCount = rows.filter(needsTypeCheck).length;
+  const closedCount = rows.filter((r) => r.closed_at).length;
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
+      if (!showClosed && r.closed_at) return false;
+      if (kind !== 'all' && r.row_kind !== kind) return false;
       if (onlyWaiting && !isWaiting(r)) return false;
       if (onlyCheck && !needsTypeCheck(r)) return false;
       if (!needle) return true;
-      return [r.company_name, r.company_city, r.merchant, r.brand, r.inquiry, r.thread_subject, r.team_status, r.brand_status, r.owner_remark, r.product_code, r.awb, r.po_number, r.summary]
+      return [r.company_name, r.company_city, r.merchant, r.brand, r.inquiry, r.thread_subject, r.brand_status, r.customer_status, r.grc_status, r.enquiry_ref, ...(r.points ?? []), r.product_code, r.awb, r.po_number, r.summary]
         .some((v) => v?.toLowerCase().includes(needle));
     });
-  }, [rows, q, onlyWaiting, onlyCheck]);
+  }, [rows, q, onlyWaiting, onlyCheck, kind, showClosed]);
 
   const groups = useMemo(() => {
-    const g = groupByCompany(filtered);
+    const g = groupByCompany(groupSubjects(filtered));
     if (!sort) return g;
     for (const grp of g) grp.rows.sort((a, b) => compare(sort, a, b));
     return [...g].sort((a, b) => compare(sort, a.rows[0]!, b.rows[0]!));
   }, [filtered, sort]);
   const shown = groups.slice(0, limit);
+  /** A subject row shows the pictures of all its conversations (each picture once). */
+  const picsOf = (r: SheetRow): RowPic[] => {
+    if (!r.members) return pictures[r.row_id] ?? [];
+    const seen = new Set<string>();
+    return r.members.flatMap((m) => pictures[m.row_id] ?? []).filter((p) => !seen.has(p.thumb) && (seen.add(p.thumb), true));
+  };
 
   const act = (fn: () => Promise<ActionResult<unknown>>, ok: string, after?: () => void) =>
     start(async () => {
@@ -208,7 +220,21 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                       style={{ width: c.width, minWidth: c.width, maxWidth: c.width + 40 }}
                       aria-sort={c.sortable ? ariaSort(sort, c.key) : undefined}
                     >
-                      {c.sortable ? <SortHeader label={label(c, labels)} colKey={c.key} sort={sort} onSort={setSort} /> : label(c, labels)}
+                      <span className="flex items-center gap-1.5">
+                        {c.sortable ? <SortHeader label={label(c, labels)} colKey={c.key} sort={sort} onSort={setSort} /> : label(c, labels)}
+                        {c.key === 'type' && (
+                          <select
+                            aria-label="Show only one type"
+                            value={kind}
+                            onChange={(e) => setKind(e.target.value as typeof kind)}
+                            className={cx('h-6 w-auto rounded-md border px-1 text-[12px] font-medium', kind === 'all' ? 'border-line bg-surface text-muted' : 'border-indigo bg-indigo-soft text-indigo')}
+                          >
+                            <option value="all">All</option>
+                            <option value="development">Development</option>
+                            <option value="bulk">Bulk</option>
+                          </select>
+                        )}
+                      </span>
                     </th>
                   ))}
                   <th className="act" style={{ width: 132, minWidth: 132 }}>
@@ -265,7 +291,7 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                             {c.key === 'inquiry' ? (
                               <InquiryCell r={r} onOpen={() => setOpenId(r.row_id)} />
                             ) : (
-                              <Cell col={c} r={r} pics={pictures[r.row_id] ?? []} stepLabel={stepLabel(r)} />
+                              <Cell col={c} r={r} pics={picsOf(r)} stepLabel={stepLabel(r)} />
                             )}
                           </td>
                         ))}
@@ -305,6 +331,14 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                 )}
               </tbody>
             </table>
+            {closedCount > 0 && (
+              <div className="border-t border-line px-5 py-2.5 text-[13px] text-muted">
+                {showClosed ? 'Showing closed rows too. ' : `${closedCount} closed ${closedCount === 1 ? 'row is' : 'rows are'} hidden. `}
+                <button type="button" className="font-medium text-indigo hover:underline" onClick={() => setShowClosed((v) => !v)}>
+                  {showClosed ? 'Hide closed' : 'Show closed'}
+                </button>
+              </div>
+            )}
             {groups.length > limit && (
               <div className="px-5 py-4">
                 <Button onClick={() => setLimit((l) => l + GROUPS_PER_PAGE)}>Show {Math.min(GROUPS_PER_PAGE, groups.length - limit)} more clients</Button>
@@ -340,7 +374,7 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
           labels={labels}
           checklist={openRow.source === 'bulk' && openRow.item_id ? bulk?.[openRow.item_id] : undefined}
           stageDefs={stageDefs}
-          pictures={pictures[openRow.row_id] ?? []}
+          pictures={picsOf(openRow)}
           onClose={closePanel}
           approveSlot={
             canApprove && openRow.company_id && openRow.company_approval === 'pending' ? (
@@ -452,21 +486,88 @@ function CompanyCell({
   );
 }
 
+/** Splits a stored summary into pointers ("• …" lines, or sentences). */
+function toPoints(s: string): string[] {
+  const lines = s.split(/\n+/).map((l) => l.replace(/^[•\-*\s]+/, '').trim()).filter(Boolean);
+  return (lines.length > 1 ? lines : s.split(/(?<=[.;])\s+/).map((l) => l.trim()).filter(Boolean)).slice(0, 5);
+}
+
+/** At most five short pointers. */
+function Points({ points }: { points: string[] }) {
+  if (!points.length) return null;
+  return (
+    <ul className="mt-1 space-y-0.5 text-[13px] leading-snug text-muted">
+      {points.slice(0, 5).map((p, i) => (
+        <li key={i} className="flex gap-1.5">
+          <span aria-hidden className="text-faint">•</span>
+          <span>{p}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A subject's enquiries, numbered, each with its pointers; meeting invites shown as such. */
+function SubjectEnquiries({ members }: { members: SheetRow[] }) {
+  const enquiries = members.filter((m) => !m.is_meeting);
+  const meetings = members.filter((m) => m.is_meeting);
+  return (
+    <span className="mt-1 block space-y-1.5">
+      <span className="block text-[12.5px] font-medium text-muted">
+        {enquiries.length} {enquiries.length === 1 ? 'enquiry' : 'enquiries'}
+        {meetings.length ? `, ${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}` : ''}
+      </span>
+      {enquiries.map((m, i) => (
+        <span key={m.row_id} className="block">
+          <span className="block text-[13px] font-medium text-ink-2">
+            {i + 1}. {m.thread_subject || '(no subject)'}
+            {m.enquiry_ref && <span className="font-normal text-muted"> · {m.enquiry_ref}</span>}
+            <span className="font-normal text-muted"> · {shortDate(m.last_at)}</span>
+          </span>
+          <Points points={(m.points?.length ? m.points : m.summary ? [m.summary] : []).slice(0, 3)} />
+        </span>
+      ))}
+      {meetings.map((m) => (
+        <span key={m.row_id} className="block text-[13px] text-muted">
+          <span className="font-medium text-ink-2">Meeting:</span> {m.thread_subject || 'invite'} · {shortDate(m.last_at)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** The Inquiry column: what it's about; a click opens the details panel. */
 function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group/p block w-full text-left" title="Open the details">
       <span className={cx('line-clamp-2 text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2', r.source === 'thread' && 'font-medium')}>
-        {titleOf(r)}
+        {r.members ? `${r.brand} · ${r.row_kind === 'bulk' ? 'Bulk' : 'Development'}` : titleOf(r)}
       </span>
       {r.source === 'bulk' && (r.po_number || r.qty_mtrs) && (
         <span className="mt-0.5 block text-[13px] text-muted">
           {[r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')}
         </span>
       )}
-      {r.source === 'thread' && r.summary && <span className="mt-1 line-clamp-2 block text-[13px] leading-snug text-muted">{r.summary}</span>}
+      {r.members ? (
+        <SubjectEnquiries members={r.members} />
+      ) : r.source === 'thread' ? (
+        <Points points={r.points?.length ? r.points : r.summary ? [r.summary] : []} />
+      ) : (
+        r.summary && <Points points={toPoints(r.summary)} />
+      )}
       {r.source === 'thread' && r.company_approval === 'approved' && !r.is_read && <span className="mt-1 block text-[12.5px] font-medium text-indigo">AI is reading this now</span>}
     </button>
+  );
+}
+
+/** What one side said last, and when. */
+function SaidCell({ text, at, empty, alert }: { text: string | null; at: string | null; empty: string; alert?: boolean }) {
+  if (!text) return <span className={cx('text-[13px]', alert ? 'font-medium text-red' : 'text-faint')}>{empty}</span>;
+  return (
+    <span className="block text-[13px] leading-snug">
+      <span className="line-clamp-3 text-ink-2">{text}</span>
+      {at && <span className="mt-0.5 block text-[12px] text-muted">{shortDate(at)}</span>}
+    </span>
   );
 }
 
@@ -481,20 +582,25 @@ function Cell({ col, r, pics, stepLabel }: { col: SheetColumn; r: SheetRow; pics
       return <ReplyCell state={r.reply_state} waitingOn={r.waiting_on} dueAt={r.reply_due_at} />;
     case 'last_email':
       return <span className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(r.last_at)}</span>;
+    case 'customer_reply':
+      return <SaidCell text={r.customer_status} at={r.last_in_at} empty="—" />;
+    case 'grc_reply':
+      return (
+        <div className="flex flex-col items-start gap-1">
+          {r.source === 'bulk' && <BulkStatusText status={r.stage} />}
+          {r.source === 'bulk' && stepLabel && <span className="text-[13px] text-muted">Latest step: {stepLabel}</span>}
+          <SaidCell text={r.grc_status} at={r.last_out_at} empty={r.reply_state === 'awaiting' ? 'No reply yet' : '—'} alert={r.reply_state === 'awaiting' && !r.grc_status} />
+        </div>
+      );
   }
   if (r.source === 'thread') {
     if (col.key === 'merchant_name') return <span>{r.merchant ?? ''}</span>;
+    if (col.key === 'brand') return <span className="font-medium">{r.brand ?? ''}</span>;
     if (col.key === 'enquiry_date') return <span className="text-muted">{shortDate(r.enquiry_date)}</span>;
+    if (col.key === 'price_quoted' || col.key === 'sample_status') return <span>{cellValue(r, col.key) ?? ''}</span>;
     return null;
   }
   if (r.source === 'bulk') {
-    if (col.key === 'team_status')
-      return (
-        <div className="flex flex-col items-start gap-1">
-          <BulkStatusText status={r.stage} />
-          {stepLabel && <span className="text-[13px] text-muted">Latest step: {stepLabel}</span>}
-        </div>
-      );
     if (!col.bulkField) return null;
     return (
       <EditableCell

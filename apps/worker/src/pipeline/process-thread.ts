@@ -47,8 +47,16 @@ export async function processThread(
     if (o) category = o.category as typeof category;
   }
 
+  // A new customer email reopens a subject someone closed.
+  await ctx.sql`update email_thread set closed_at = null, closed_by = null
+                where id = ${ing.threadId} and closed_at is not null and last_inbound_at > closed_at`;
+
   // Email pictures for every order conversation, approved or not (downloads only, no AI cost).
-  if (TRACKED_CATEGORIES.includes(category)) await ensureThumbnails(ctx, api, ing.threadId);
+  // Signature logos (the same image size from the same sender in 3+ emails) are flagged first.
+  if (TRACKED_CATEGORIES.includes(category)) {
+    await ctx.sql`select mark_signature_images()`;
+    await ensureThumbnails(ctx, api, ing.threadId);
+  }
 
   // Only clients an owner approved are read in depth (and cost AI tokens).
   if (opts.extract && TRACKED_CATEGORIES.includes(category) && (await isThreadClientApproved(ctx.sql, ing.threadId))) {

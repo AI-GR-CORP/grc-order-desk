@@ -10,6 +10,7 @@ export async function runPictureBackfill(ctx: Ctx, mailboxId: string): Promise<v
     ctx.log.warn('pictures: storage not configured; skipping');
     return;
   }
+  await sql`select mark_signature_images()`; // logos first, so they aren't downloaded
   const mb = await loadMailbox(sql, mailboxId);
   const api = gmailFor(sql, mb);
   const threads = await sql<{ id: string }[]>`
@@ -18,7 +19,7 @@ export async function runPictureBackfill(ctx: Ctx, mailboxId: string): Promise<v
     join email_message m on m.thread_id = t.id
     join attachment a on a.message_id = m.id
     where t.mailbox_id = ${mailboxId} and t.category in ('development','bulk','mixed')
-      and a.kind = 'image' and a.thumbnail_path is null`;
+      and a.kind = 'image' and a.thumbnail_path is null and not a.is_signature`;
   let done = 0;
   const save = (finished = false) =>
     sql`update mailbox set backfill_progress = backfill_progress || ${sql.json({ pictures: { total: threads.length, done, ...(finished ? { finishedAt: new Date().toISOString() } : {}) } } as never)} where id = ${mailboxId}`;

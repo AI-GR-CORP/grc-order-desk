@@ -150,3 +150,42 @@ export async function setClientType(companyId: string, type: 'development' | 'bu
     return { count: (data as number) ?? 0 };
   });
 }
+
+export interface CloseTarget {
+  threads?: string[];
+  devItems?: string[];
+  bulkOrders?: string[];
+}
+
+/**
+ * Close (or reopen) subjects and enquiries. Closed rows leave the open lists; a new email from the
+ * customer reopens a closed subject automatically, so nothing is missed.
+ */
+export async function setRowsClosed(target: CloseTarget, closed: boolean): Promise<ActionResult> {
+  return run(async () => {
+    const user = await assertUser();
+    const supabase = await createSupabase();
+    const patch = closed ? { closed_at: new Date().toISOString(), closed_by: user.id } : { closed_at: null, closed_by: null };
+    for (const [table, ids] of [['email_thread', target.threads], ['dev_item', target.devItems], ['bulk_order', target.bulkOrders]] as const) {
+      if (!ids?.length) continue;
+      const { error } = await supabase.from(table).update(patch).in('id', ids);
+      if (error) throw new Error(error.message);
+    }
+    // Reopening a development row that was closed by stage puts it back to work.
+    if (!closed && target.devItems?.length) {
+      await supabase.from('dev_item').update({ stage: 'inquiry_received' }).in('id', target.devItems).eq('stage', 'closed');
+    }
+    refreshSheets();
+  });
+}
+
+/** Skip: not order work. The conversations leave the sheets for good and the AI learns from it. */
+export async function skipThreads(threadIds: string[]): Promise<ActionResult> {
+  return run(async () => {
+    for (const id of threadIds) {
+      const r = await setThreadCategory(id, 'ignored');
+      if (!r.ok) throw new Error(r.error);
+    }
+    refreshSheets();
+  });
+}

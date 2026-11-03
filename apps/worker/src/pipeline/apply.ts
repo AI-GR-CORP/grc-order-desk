@@ -274,7 +274,7 @@ async function linkEmailPictures(tx: Db, threadId: string, kind: 'dev' | 'bulk',
   const hits = await tx<{ id: string; name: string }[]>`
     select a.id, lower(a.filename) as name
     from attachment a join email_message m on m.id = a.message_id
-    where m.thread_id = ${threadId} and a.kind = 'image' and lower(a.filename) = any(${names}::text[])`;
+    where m.thread_id = ${threadId} and a.kind = 'image' and not a.is_signature and lower(a.filename) = any(${names}::text[])`;
   const byName = new Map<string, string[]>();
   for (const h of hits) byName.set(h.name, [...(byName.get(h.name) ?? []), h.id]);
   let position = 100;

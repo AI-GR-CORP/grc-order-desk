@@ -100,6 +100,9 @@ export const ORDER_TOPIC_KEYS = ORDER_TOPICS.map((t) => t.key) as unknown as rea
 export type OrderTopic = (typeof ORDER_TOPICS)[number]['key'];
 export const topicLabel = (k: string): string => ORDER_TOPICS.find((t) => t.key === k)?.label ?? k;
 
+/** Outlook "Recall: <subject>" messages are housekeeping, not customer mail. */
+export const isRecallSubject = (subject: string | null | undefined): boolean => /^\s*recall\s*:/i.test(subject ?? '');
+
 export const REPLY_STATES = [
   'awaiting',
   'replied',

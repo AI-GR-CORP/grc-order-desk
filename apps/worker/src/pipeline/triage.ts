@@ -1,4 +1,4 @@
-import { threadCategoryFromTriage, type AppSettings, type ThreadCategory, type TriageCategory } from '@grc/core';
+import { isRecallSubject, threadCategoryFromTriage, type AppSettings, type ThreadCategory, type TriageCategory } from '@grc/core';
 import { TriageSchema, triageSystem, triageUserContent, type Triage } from '@grc/core/ai';
 import { getProvider, type CallOptions } from '../ai/provider';
 import { recordAiRun } from '../ai/record';
@@ -45,10 +45,15 @@ export async function applyTriage(
 }
 
 /** Direct (non-batch) triage, used for live sync and small backfills. */
+/** What a recall message is, without asking the AI. */
+export const RECALL_TRIAGE = { category: 'other', is_customer: false, needs_reply: false, company_name: null, contact_name: null, confidence: 1, reason: 'Message recall' } as never;
+
 export async function triageMessages(ctx: Ctx, settings: AppSettings, profile: string, ids: readonly string[]): Promise<void> {
   const msgs = await loadMessages(ctx.sql, ids);
   const ai = getProvider();
   await mapLimit(msgs, config().AI_CONCURRENCY, async (m) => {
+    // Outlook "Recall: …" messages: housekeeping, never tracked, no AI call.
+    if (isRecallSubject(m.subject)) return void (await applyTriage(ctx.sql, m, RECALL_TRIAGE));
     const call = triageCall(settings, profile, m);
     try {
       const r = await ai.call(call);

@@ -39,7 +39,7 @@ export const DevItemSchema = z.object({
   next_action: maybe.describe('The next concrete thing GRC must do, or null'),
   stage: z.enum(DEV_STAGE_KEYS),
   picture_files: z.array(text).describe('File names (from the Attachments lines) of photos, artwork or swatches that show THIS item. Empty if none or unsure.'),
-  summary: text.describe('1–3 sentences on this item across the thread'),
+  summary: text.describe('At most 5 pointers on this item, one per line starting with "• ", each under 15 words, specific (quantities, dates, prices, decisions, what is pending)'),
   confidence: z.number().describe('0 to 1'),
 });
 export type DevItemExtraction = z.infer<typeof DevItemSchema>;
@@ -112,5 +112,13 @@ export const ThreadTypeSchema = z.object({
   evidence: text.describe('The words from the emails that decided it, quoted briefly (max 30 words)'),
   confidence: z.number().describe('0 to 1: how sure you are of order_type and topics'),
   reason: text.describe('One short sentence a merchandiser would understand'),
+  brand: maybe.describe('The END brand the goods are for (e.g. G-STAR, LYLE & SCOTT, Merrell, UCLA), written as the emails write it. Never the customer company. null if no brand is named.'),
+  points: z.array(text).describe('At most 5 pointers, each under 15 words: the specific facts that matter (what is asked, quantities, dates, prices, decisions, what is pending). No greetings, no filler, no repetition.'),
+  customer_status: maybe.describe("The customer's latest message in under 15 words, specific (e.g. 'Asked to confirm PP sample dates; bulk needed by 1 Dec'). null if the customer has not written."),
+  grc_status: maybe.describe("GRC's latest message in under 15 words, specific (e.g. 'Shared revised price $0.078/m'). null if GRC has not replied."),
+  is_meeting: z.boolean().describe('true when the conversation is only a meeting / call / calendar invite'),
+  price_quoted: maybe.describe('The latest price GRC quoted, with unit and currency as written (e.g. "$0.078/m"). null if none.'),
+  sample_status: maybe.describe('Sample approval status in 1-3 words (e.g. "Approved", "Pending", "Rejected", "Comments received"). null if no sample is involved.'),
+  enquiry_ref: maybe.describe("The customer's order / PO / enquiry / style number if the emails give one, else null."),
 });
 export type ThreadType = z.infer<typeof ThreadTypeSchema>;

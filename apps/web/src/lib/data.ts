@@ -52,7 +52,7 @@ export async function getRowPictures(rows: SheetRow[]): Promise<Record<string, R
     const t = rowTarget(r);
     if (t) byKey.set(`${t.kind}:${t.id}`, r.row_id);
   }
-  type Rec = { id: string; dev_item_id: string | null; bulk_order_id: string | null; thread_id: string | null; source: RowPic['source']; thumb_path: string | null; full_path: string | null; sheet_cell: string | null; attachment: { thumbnail_path: string | null } | null };
+  type Rec = { id: string; dev_item_id: string | null; bulk_order_id: string | null; thread_id: string | null; source: RowPic['source']; thumb_path: string | null; full_path: string | null; sheet_cell: string | null; attachment: { thumbnail_path: string | null; is_signature: boolean } | null };
   const recs: Rec[] = [];
   const groups: [string, 'dev_item_id' | 'bulk_order_id' | 'thread_id'][] = [['dev', 'dev_item_id'], ['bulk', 'bulk_order_id'], ['thread', 'thread_id']];
   for (const [kind, col] of groups) {
@@ -60,7 +60,7 @@ export async function getRowPictures(rows: SheetRow[]): Promise<Record<string, R
     for (let i = 0; i < ids.length; i += 150) {
       const { data } = await admin
         .from('row_picture')
-        .select('id, dev_item_id, bulk_order_id, thread_id, source, thumb_path, full_path, sheet_cell, attachment:attachment_id(thumbnail_path)')
+        .select('id, dev_item_id, bulk_order_id, thread_id, source, thumb_path, full_path, sheet_cell, attachment:attachment_id(thumbnail_path, is_signature)')
         .in(col, ids.slice(i, i + 150))
         .eq('hidden', false)
         .order('position')
@@ -71,6 +71,7 @@ export async function getRowPictures(rows: SheetRow[]): Promise<Record<string, R
   const paths = new Set<string>();
   const usable = recs
     .map((p) => {
+      if (p.attachment?.is_signature) return null; // signature logos are not pictures
       const thumb = p.thumb_path || p.attachment?.thumbnail_path || '';
       const full = p.full_path || thumb;
       return thumb ? { p, thumb, full } : null;
@@ -118,6 +119,7 @@ export async function getThumbnails(threadIds: string[]): Promise<Record<string,
       .select('thumbnail_path, email_message!inner(thread_id, sent_at)')
       .in('email_message.thread_id', ids.slice(i, i + 200))
       .not('thumbnail_path', 'is', null)
+      .eq('is_signature', false)
       .neq('thumbnail_path', '');
     for (const r of (data ?? []) as unknown as { thumbnail_path: string; email_message: { thread_id: string } }[]) {
       rows.push({ thumbnail_path: r.thumbnail_path, thread_id: r.email_message.thread_id });

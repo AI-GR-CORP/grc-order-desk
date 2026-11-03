@@ -11,6 +11,7 @@ import { TypeBadges } from './type-cell';
 import { buttonClass, inputClass } from './ui';
 import type { BulkChecklist, StageDef } from './work-sheet';
 import { TypeEditor } from './type-cell';
+import { RowCloseActions, SubjectEnquiryList } from './row-close';
 import { RowPictures } from './row-pictures';
 import { rowTarget, type RowPic } from '@/lib/pictures';
 import { typeInfo } from '@/lib/sheet';
@@ -108,10 +109,15 @@ export function RowPanel({
               </Link>
             </div>
           )}
+          <div className="mt-3">
+            <RowCloseActions row={row} onDone={onClose} />
+          </div>
         </header>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           {approveSlot}
+
+          {row.members && <SubjectEnquiryList members={row.members} onDone={onClose} />}
 
           {row.thread_id && (
             <section className="rounded-xl border border-line px-4 py-4">

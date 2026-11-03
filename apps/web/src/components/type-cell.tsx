@@ -9,6 +9,8 @@ import { Button } from './ui';
 
 export interface TypeInfo {
   threadId: string | null;
+  /** A subject row: every conversation in it gets the same type. */
+  threadIds?: string[];
   kind: string;
   topics: string[];
   needsCheck: boolean;
@@ -62,16 +64,20 @@ export function TypeEditor({ info, onDone }: { info: TypeInfo; onDone?: () => vo
   const save = () =>
     run(async () => {
       if (!info.threadId || !kind) return;
-      const r = await setThreadType(info.threadId, kind, topics);
-      if (!r.ok) return void toast.error(r.error);
+      for (const id of info.threadIds ?? [info.threadId]) {
+        const r = await setThreadType(id, kind, topics);
+        if (!r.ok) return void toast.error(r.error);
+      }
       toast.success(changed ? 'Saved. The AI will remember this.' : 'Saved');
       onDone?.();
     });
   const confirm = () =>
     run(async () => {
       if (!info.threadId) return;
-      const r = await confirmThreadType(info.threadId);
-      if (!r.ok) return void toast.error(r.error);
+      for (const id of info.threadIds ?? [info.threadId]) {
+        const r = await confirmThreadType(id);
+        if (!r.ok) return void toast.error(r.error);
+      }
       toast.success('Marked as checked');
       onDone?.();
     });

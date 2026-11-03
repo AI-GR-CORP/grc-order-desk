@@ -20,6 +20,12 @@ import type { Db, Sql } from '../db';
 import { errorMessage } from '../errors';
 import { loadThreadMessages } from './messages';
 
+/** Trims an AI text field; empty becomes null. */
+const clean = (v: string | null | undefined, max: number): string | null => {
+  const t = (v ?? '').replace(/\s+/g, ' ').replace(/^[•\-*\s]+/, '').trim();
+  return t ? t.slice(0, max) : null;
+};
+
 /** Below this confidence a person is asked to check the type and topics. */
 export const CHECK_BELOW = 0.8;
 const PER_EMAIL_CHARS = 1800;
@@ -112,6 +118,12 @@ export async function buildClassifyCall(sql: Db, settings: AppSettings, profile:
   const { kept, omitted } = fitThreadToBudget(trimmed, THREAD_CHARS);
   const clues = findClues(all.map((m) => ({ subject: m.subject, body: m.body, attachments: m.attachments })));
   const [global, client] = await Promise.all([getGlobalTypeLessons(sql), getClientContext(sql, t.company_id, threadId)]);
+  const others = t.company_id
+    ? await sql<{ category: string; subject: string | null; brand: string | null }[]>`
+        select category::text as category, subject, brand from email_thread
+        where company_id = ${t.company_id} and id <> ${threadId} and category in ('development','bulk','mixed')
+        order by last_message_at desc nulls last limit 25`
+    : [];
   const cfg = config();
   return {
     threadId,
@@ -123,6 +135,7 @@ export async function buildClassifyCall(sql: Db, settings: AppSettings, profile:
         companyName: t.company_name,
         clientHistory: client.history,
         clientLessons: client.lessons,
+        otherConversations: others.map((o) => `[${o.category}] ${(o.subject ?? '(no subject)').slice(0, 100)}${o.brand ? ` (brand ${o.brand})` : ''}`),
         clues: cluesForPrompt(clues),
         omittedCount: omitted,
         messages: kept,
@@ -186,6 +199,14 @@ export async function applyClassification(
         type_confidence  = ${confidence},
         type_reason      = ${reason},
         type_needs_check = ${needsCheck},
+        brand            = ${clean(result.brand, 60)},
+        points           = ${(result.points ?? []).map((x) => clean(x, 140)).filter(Boolean).slice(0, 5) as string[]},
+        customer_status  = ${clean(result.customer_status, 160)},
+        grc_status       = ${clean(result.grc_status, 160)},
+        is_meeting       = ${Boolean(result.is_meeting)},
+        price_quoted     = ${clean(result.price_quoted, 60)},
+        sample_status    = ${clean(result.sample_status, 40)},
+        enquiry_ref      = ${clean(result.enquiry_ref, 60)},
         classified_at    = now()
       where id = ${threadId}`;
 

@@ -25,6 +25,7 @@ export const DEV_COLUMNS: readonly ColumnDef[] = [
   { key: 'awb', label: 'AWB', sheet: 'AWB / Blue Dart Tracking', editable: true, width: 130 },
   { key: 'edd', label: 'EDD', sheet: 'SAMPLE EDD', editable: true, width: 104, kind: 'date' },
   { key: 'brand_status', label: 'Status of brand', sheet: 'Status of brand', editable: true, width: 170, kind: 'longtext' },
+  { key: 'sample_approval', label: 'Sample approval', sheet: '(new)', editable: true, width: 140 },
   { key: 'team_status', label: 'Team status', sheet: 'Status of Poornima / Aquib Status', editable: true, width: 200, kind: 'longtext' },
   { key: 'next_action', label: 'Work to be done', sheet: 'Work to be done / Aquib to do', editable: true, width: 200, kind: 'longtext' },
   { key: 'owner_remark', label: 'Owner remark', sheet: 'Yash remark', editable: true, width: 200, kind: 'longtext' },

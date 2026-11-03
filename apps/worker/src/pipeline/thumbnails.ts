@@ -13,7 +13,7 @@ export async function ensureThumbnails(ctx: Ctx, api: GmailApi, threadId: string
   const rows = await ctx.sql<{ id: string; gmail_message_id: string; gmail_attachment_id: string }[]>`
     select a.id, m.gmail_message_id, a.gmail_attachment_id
     from attachment a join email_message m on m.id = a.message_id
-    where m.thread_id = ${threadId} and a.kind = 'image' and a.thumbnail_path is null
+    where m.thread_id = ${threadId} and a.kind = 'image' and a.thumbnail_path is null and not a.is_signature
       and coalesce(a.size_bytes, 0) between ${MIN_BYTES} and ${MAX_BYTES}
       and coalesce(a.mime_type, '') not in ('image/gif', 'image/svg+xml')
     order by m.sent_at desc

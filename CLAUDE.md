@@ -80,6 +80,13 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - `pnpm ops pictures <sheet.xlsx>` writes `pictures-check.html` (every sheet row, its pictures and cells, and where it goes) and opens it; `--apply` imports rows + pictures and queues email pictures for every order conversation. Safe to re-run. `pictures-check.html` contains client pictures: never commit it.
 - Email pictures are made for every order conversation (approved or not; downloads only, no AI cost).
 
+## Skimming: subjects, digest, columns (the owner's 18 points)
+
+- Yash skims every client in 5-10 minutes. Conversation rows of one client with the same brand and type are ONE subject row with numbered enquiries (`groupSubjects` in `apps/web/src/lib/sheet.ts`); meeting invites (`is_meeting`) sit inside their brand's subject, never as their own subject. Product rows (items / bulk orders) stay one per product.
+- Brand is the END brand (G-STAR, LYLE & SCOTT), never the customer company. Pointers: max 5, each under 15 words, specific. Both come from the conversation sort (`classify.ts`), with Customer reply / GRC reply (`customer_status` / `grc_status`), price quoted, sample status and enquiry ref.
+- Grid columns: removed Sample collected, Status of Poornima, Yash remark (owner's request; don't add them back). Added Customer reply, GRC reply, Price quoted (dev `grc_rate`), Sample approval (dev `sample_approval`). Bulk progress shows in GRC reply. Type filter is in the Type column header.
+- Close (subject / enquiry; a new customer email reopens a subject) and Skip (not order work; saved as a lesson) live in the details panel. Recall emails ("Recall: …") are never tracked. Signature logos (same sender, same image size, 3+ emails) are never pictures.
+
 ## Before saying something is done
 `pnpm typecheck && pnpm test`; for UI changes also `pnpm --filter @grc/web build`; for migrations run the integration tests on a local Postgres. Then `pnpm ops deploy` and `pnpm ops check`.
 
