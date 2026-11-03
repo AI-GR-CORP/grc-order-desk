@@ -195,10 +195,12 @@ d('conversation sorting (integration)', () => {
 
     // The AI never changes it again, even when it would answer differently.
     expect(await mods.classify.needsClassification(sql, primark)).toBe(false);
+    // …but its summary is still kept current: it stays in a re-sort, and only the digest changes.
+    expect(await mods.classify.classificationCandidates(sql, mailboxId, false)).toContain(primark);
     await mods.classify.applyClassification(sql, primark,
-      { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: '', confidence: 0.99, reason: '' }, []);
-    const [after] = await sql`select category::text, topics, type_needs_check from email_thread where id = ${primark}`;
-    expect(after).toMatchObject({ category: 'bulk', topics: ['payment_followup'], type_needs_check: false });
+      { ...NO_DIGEST, is_order: true, order_type: 'development', topics: [], evidence: '', confidence: 0.99, reason: '', brand: 'PRIMARK', points: ['Revised PO price agreed'], grc_status: 'Sent revised POs' }, []);
+    const [after] = await sql`select category::text, topics, type_needs_check, brand, points, grc_status from email_thread where id = ${primark}`;
+    expect(after).toMatchObject({ category: 'bulk', topics: ['payment_followup'], type_needs_check: false, brand: 'PRIMARK', points: ['Revised PO price agreed'], grc_status: 'Sent revised POs' });
 
     // The next conversation from this client is sorted with that lesson in front of the AI.
     mods.classify.resetLessonCache();

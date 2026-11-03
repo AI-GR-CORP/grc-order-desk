@@ -730,11 +730,11 @@ async function cmdReclassify(apply) {
                  and m.triage->>'category' in ('development','bulk','payment','lab_report')))`;
     const [n] = await sql`
       select count(*)::int as total,
-             count(*) filter (where not (t.category_locked and t.topics_locked))::int as todo,
+             count(*)::int as todo,
              count(*) filter (where t.category_locked and t.topics_locked)::int as kept,
-             count(*) filter (where t.classified_at is null and not (t.category_locked and t.topics_locked))::int as never,
+             count(*) filter (where t.classified_at is null or cardinality(t.points) = 0)::int as never,
              coalesce(sum(least(16000, (select coalesce(sum(length(coalesce(m.body_clean, m.snippet, ''))), 0) from email_message m where m.thread_id = t.id)))
-                      filter (where not (t.category_locked and t.topics_locked)), 0)::bigint as chars
+                      ), 0)::bigint as chars
       from email_thread t where t.mailbox_id = ${mb.id} and ${candidate}`;
     const todo = onlyNew ? n.never : n.todo;
     const [{ value: models }] = await sql`select value from app_setting where key = 'ai_models'`;
@@ -749,8 +749,8 @@ async function cmdReclassify(apply) {
     const usd = ((inTok * price[0] + outTok * price[1]) / 1e6) * (todo >= 50 ? 0.5 : 1) + (review && review !== model ? ((inTok * rprice[0] + outTok * rprice[1]) / 1e6) * 0.2 : 0);
     section('Re-sort conversations: Development / Bulk + topics');
     ok(`${n.total} order-like conversations in ${mb.email}`);
-    ok(`${n.kept} were checked by your team and stay exactly as they are`);
-    ok(`${todo} will be sorted again by ${model}${onlyNew ? ' (only never-sorted ones)' : ''}`);
+    ok(`${n.kept} were checked by your team: they keep their type and topics; only their summary is refreshed`);
+    ok(`${todo} will be sorted again by ${model}${onlyNew ? ' (only ones without a summary yet)' : ''}`);
     ok(`Estimated cost: about $${Math.max(0.01, usd).toFixed(2)}${todo >= 50 ? ' (half-price batch; usually done within an hour)' : ''}`);
     if (!apply) {
       console.log(`\n  Nothing started. Run ${c.b('pnpm ops reclassify --apply')} to start it (the worker must be running).\n`);

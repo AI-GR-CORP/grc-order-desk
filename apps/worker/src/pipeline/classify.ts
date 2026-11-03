@@ -39,23 +39,21 @@ const CANDIDATE = (sql: Db) => sql`(
                and m.triage->>'category' in ('development','bulk','payment','lab_report'))
 )`;
 
-/** Conversations the AI may sort: order-like and not fully fixed by a person. */
+/** Order-like conversations. Ones a person checked keep their type and topics; only their summary is refreshed. */
 export async function classificationCandidates(sql: Db, mailboxId: string, onlyUnsorted: boolean): Promise<string[]> {
   const rows = await sql<{ id: string }[]>`
     select t.id from email_thread t
     where t.mailbox_id = ${mailboxId}
-      and not (t.category_locked and t.topics_locked)
       and ${CANDIDATE(sql)}
-      ${onlyUnsorted ? sql`and t.classified_at is null` : sql``}
+      ${onlyUnsorted ? sql`and (t.classified_at is null or cardinality(t.points) = 0)` : sql``}
     order by t.last_message_at desc nulls last`;
   return rows.map((r) => r.id);
 }
 
-/** True when a conversation is order-like, not fixed by a person, and has news since it was last sorted. */
+/** True when a conversation is order-like and has news since it was last read (checked ones too: their summary stays current). */
 export async function needsClassification(sql: Db, threadId: string): Promise<boolean> {
   const [r] = await sql<{ ok: boolean }[]>`
-    select (not (t.category_locked and t.topics_locked)
-            and ${CANDIDATE(sql)}
+    select (${CANDIDATE(sql)}
             and (t.classified_at is null or t.last_message_at > t.classified_at)) as ok
     from email_thread t where t.id = ${threadId}`;
   return Boolean(r?.ok);
@@ -240,6 +238,9 @@ export async function secondOpinion(
 ): Promise<{ result: ThreadType; forceCheck: boolean }> {
   const reviewModel = settings.ai_models.classify_review;
   if (!reviewModel || reviewModel === settings.ai_models.classify || !isDoubtful(first, clues)) return { result: first, forceCheck: false };
+  // A person already decided this conversation's type and topics: no second opinion needed.
+  const [lock] = await ctx.sql<{ locked: boolean }[]>`select category_locked and topics_locked as locked from email_thread where id = ${threadId}`;
+  if (lock?.locked) return { result: first, forceCheck: false };
   const req = await buildClassifyCall(ctx.sql, settings, profile, threadId, reviewModel);
   if (!req) return { result: first, forceCheck: false };
   try {
