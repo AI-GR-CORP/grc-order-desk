@@ -733,8 +733,7 @@ async function cmdReclassify(apply) {
              count(*)::int as todo,
              count(*) filter (where t.category_locked and t.topics_locked)::int as kept,
              count(*) filter (where t.classified_at is null or cardinality(t.points) = 0)::int as never,
-             coalesce(sum(least(16000, (select coalesce(sum(length(coalesce(m.body_clean, m.snippet, ''))), 0) from email_message m where m.thread_id = t.id)))
-                      ), 0)::bigint as chars
+             coalesce(sum(least(16000, (select coalesce(sum(length(coalesce(m.body_clean, m.snippet, ''))), 0) from email_message m where m.thread_id = t.id))), 0)::bigint as chars
       from email_thread t where t.mailbox_id = ${mb.id} and ${candidate}`;
     const todo = onlyNew ? n.never : n.todo;
     const [{ value: models }] = await sql`select value from app_setting where key = 'ai_models'`;
@@ -753,7 +752,7 @@ async function cmdReclassify(apply) {
     ok(`${todo} will be sorted again by ${model}${onlyNew ? ' (only ones without a summary yet)' : ''}`);
     ok(`Estimated cost: about $${Math.max(0.01, usd).toFixed(2)}${todo >= 50 ? ' (half-price batch; usually done within an hour)' : ''}`);
     if (!apply) {
-      console.log(`\n  Nothing started. Run ${c.b('pnpm ops reclassify --apply')} to start it (the worker must be running).\n`);
+      console.log(`\n  Nothing started. Run ${c.b(`pnpm ops reclassify${onlyNew ? ' --only-new' : ''} --apply`)} to start it (the worker must be running).\n`);
       return;
     }
     const [j] = await sql`
