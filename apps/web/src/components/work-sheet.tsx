@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { setClientApproval } from '@/app/actions/approvals';
+import { setRowsClosed, type CloseTarget } from '@/app/actions/threads';
 import { setClientType } from '@/app/actions/threads';
 import { addDevItem, updateBulkField, updateDevField } from '@/app/actions/items';
 import type { ActionResult } from '@/app/actions/result';
@@ -13,7 +14,8 @@ import {
   COMPANY_LABEL,
   DEFAULT_COLUMNS,
   groupByCompany,
-  groupSubjects,
+  subjectBlocks,
+  type SubjectInfo,
   isWaiting,
   label,
   needsTypeCheck,
@@ -121,17 +123,36 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
   }, [rows, q, onlyWaiting, onlyCheck, kind, showClosed]);
 
   const groups = useMemo(() => {
-    const g = groupByCompany(groupSubjects(filtered));
-    if (!sort) return g;
-    for (const grp of g) grp.rows.sort((a, b) => compare(sort, a, b));
-    return [...g].sort((a, b) => compare(sort, a.rows[0]!, b.rows[0]!));
+    const g = groupByCompany(filtered);
+    if (sort) for (const grp of g) grp.rows.sort((a, b) => compare(sort, a, b));
+    const sorted = sort ? [...g].sort((a, b) => compare(sort, a.rows[0]!, b.rows[0]!)) : g;
+    // Each client's rows: one row per enquiry, rows of the same brand subject together.
+    return sorted.map((grp) => {
+      const { rows: ordered, info } = subjectBlocks(grp.rows);
+      return { ...grp, rows: ordered, subjects: info };
+    });
   }, [filtered, sort]);
   const shown = groups.slice(0, limit);
-  /** A subject row shows the pictures of all its conversations (each picture once). */
-  const picsOf = (r: SheetRow): RowPic[] => {
-    if (!r.members) return pictures[r.row_id] ?? [];
-    const seen = new Set<string>();
-    return r.members.flatMap((m) => pictures[m.row_id] ?? []).filter((p) => !seen.has(p.thumb) && (seen.add(p.thumb), true));
+  const picsOf = (r: SheetRow): RowPic[] => pictures[r.row_id] ?? [];
+
+  /** Close / reopen one row (an enquiry, a conversation or a product), with Undo. */
+  const closeRow = (r: SheetRow) => {
+    const target = closeTarget(r);
+    const closing = !r.closed_at;
+    start(async () => {
+      const res = await setRowsClosed(target, closing);
+      if (!res.ok) return void toast.error(res.error);
+      toast.success(closing ? 'Closed' : 'Reopened', closing ? { action: { label: 'Undo', onClick: () => void setRowsClosed(target, false) } } : undefined);
+    });
+  };
+  /** Close every row of a subject. */
+  const closeSubject = (s: SubjectInfo) => {
+    const target = mergeTargets(s.rows.filter((r) => !r.closed_at).map(closeTarget));
+    start(async () => {
+      const res = await setRowsClosed(target, true);
+      if (!res.ok) return void toast.error(res.error);
+      toast.success(`${s.brand}: all ${s.size} closed`, { action: { label: 'Undo', onClick: () => void setRowsClosed(target, false) } });
+    });
   };
 
   const act = (fn: () => Promise<ActionResult<unknown>>, ok: string, after?: () => void) =>
@@ -237,7 +258,7 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                       </span>
                     </th>
                   ))}
-                  <th className="act" style={{ width: 132, minWidth: 132 }}>
+                  <th className="act" style={{ width: 196, minWidth: 196 }}>
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
@@ -282,7 +303,17 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                             {g.city ?? ''}
                           </td>
                         )}
-                        {cols.map((c) => (
+                        {cols.map((c) => {
+                          const subj = g.subjects.get(r.row_id);
+                          if (c.key === 'brand' && subj) {
+                            if (!subj.first) return null;
+                            return (
+                              <td key={c.key} rowSpan={subj.size} className="subject" style={{ maxWidth: c.width + 40 }}>
+                                <SubjectHeading s={subj} onCloseAll={() => closeSubject(subj)} busy={busy} />
+                              </td>
+                            );
+                          }
+                          return (
                           <td
                             key={c.key}
                             style={{ maxWidth: c.width + 40 }}
@@ -294,7 +325,8 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                               <Cell col={c} r={r} pics={picsOf(r)} stepLabel={stepLabel(r)} />
                             )}
                           </td>
-                        ))}
+                          );
+                        })}
                         <td className="act">
                           <div className="flex items-center gap-1">
                             <button
@@ -307,6 +339,15 @@ export function WorkSheet({ rows, pictures, labels, mode, approvalTab, approvals
                                 <path d="M15 4v16" />
                               </svg>
                               Open
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => closeRow(r)}
+                              disabled={busy}
+                              title={r.closed_at ? 'Reopen this row' : 'Close this row (a new customer email reopens it)'}
+                              className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] font-medium text-muted transition-colors duration-200 hover:bg-slate-soft hover:text-ink"
+                            >
+                              {r.closed_at ? 'Reopen' : 'Close'}
                             </button>
                             {r.gmail_thread_id && (
                               <a
@@ -486,53 +527,25 @@ function CompanyCell({
   );
 }
 
-/** Splits a stored summary into pointers ("• …" lines, or sentences). */
-function toPoints(s: string): string[] {
-  const lines = s.split(/\n+/).map((l) => l.replace(/^[•\-*\s]+/, '').trim()).filter(Boolean);
-  return (lines.length > 1 ? lines : s.split(/(?<=[.;])\s+/).map((l) => l.trim()).filter(Boolean)).slice(0, 5);
-}
+/** "RE: FW: Subject" → "Subject". */
+const cleanSubject = (s: string | null) => (s ?? '').replace(/^\s*((re|fw|fwd|aw|wg)\s*:\s*)+/i, '').trim();
 
-/** At most five short pointers. */
-function Points({ points }: { points: string[] }) {
-  if (!points.length) return null;
+/** The merged heading over a subject's rows: brand, type, how many, and Close all. */
+function SubjectHeading({ s, onCloseAll, busy }: { s: SubjectInfo; onCloseAll: () => void; busy: boolean }) {
+  const open = s.rows.filter((r) => !r.closed_at).length;
   return (
-    <ul className="mt-1 space-y-0.5 text-[13px] leading-snug text-muted">
-      {points.slice(0, 5).map((p, i) => (
-        <li key={i} className="flex gap-1.5">
-          <span aria-hidden className="text-faint">•</span>
-          <span>{p}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** A subject's enquiries, numbered, each with its pointers; meeting invites shown as such. */
-function SubjectEnquiries({ members }: { members: SheetRow[] }) {
-  const enquiries = members.filter((m) => !m.is_meeting);
-  const meetings = members.filter((m) => m.is_meeting);
-  return (
-    <span className="mt-1 block space-y-1.5">
-      <span className="block text-[12.5px] font-medium text-muted">
-        {enquiries.length} {enquiries.length === 1 ? 'enquiry' : 'enquiries'}
-        {meetings.length ? `, ${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}` : ''}
+    <div className="sticky top-12 flex flex-col items-start gap-1">
+      <span className="text-[14px] font-semibold text-ink">{s.brand}</span>
+      <span className="text-[12.5px] text-muted">
+        {s.kind === 'bulk' ? 'Bulk' : s.kind === 'development' ? 'Development' : 'Mixed'}
+        {s.size > 1 ? ` · ${s.size} ${s.size === 1 ? 'enquiry' : 'enquiries'}` : ''}
       </span>
-      {enquiries.map((m, i) => (
-        <span key={m.row_id} className="block">
-          <span className="block text-[13px] font-medium text-ink-2">
-            {i + 1}. {m.thread_subject || '(no subject)'}
-            {m.enquiry_ref && <span className="font-normal text-muted"> · {m.enquiry_ref}</span>}
-            <span className="font-normal text-muted"> · {shortDate(m.last_at)}</span>
-          </span>
-          <Points points={(m.points?.length ? m.points : m.summary ? [m.summary] : []).slice(0, 3)} />
-        </span>
-      ))}
-      {meetings.map((m) => (
-        <span key={m.row_id} className="block text-[13px] text-muted">
-          <span className="font-medium text-ink-2">Meeting:</span> {m.thread_subject || 'invite'} · {shortDate(m.last_at)}
-        </span>
-      ))}
-    </span>
+      {s.size > 1 && open > 0 && (
+        <button type="button" onClick={onCloseAll} disabled={busy} className="mt-0.5 text-[12.5px] font-medium text-indigo hover:underline">
+          Close all {open}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -541,23 +554,27 @@ function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group/p block w-full text-left" title="Open the details">
       <span className={cx('line-clamp-2 text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2', r.source === 'thread' && 'font-medium')}>
-        {r.members ? `${r.brand} · ${r.row_kind === 'bulk' ? 'Bulk' : 'Development'}` : titleOf(r)}
+        {r.source === 'thread' ? `${r.is_meeting ? 'Meeting · ' : ''}${r.title || cleanSubject(r.thread_subject) || titleOf(r)}` : titleOf(r)}
       </span>
       {r.source === 'bulk' && (r.po_number || r.qty_mtrs) && (
         <span className="mt-0.5 block text-[13px] text-muted">
           {[r.po_number && `PO ${r.po_number}`, r.qty_mtrs && `${Number(r.qty_mtrs).toLocaleString('en-IN')} mtrs`].filter(Boolean).join(', ')}
         </span>
       )}
-      {r.members ? (
-        <SubjectEnquiries members={r.members} />
-      ) : r.source === 'thread' ? (
-        <Points points={r.points?.length ? r.points : r.summary ? [r.summary] : []} />
-      ) : (
-        r.summary && <Points points={toPoints(r.summary)} />
-      )}
+      {r.enquiry_ref && r.source === 'thread' && <span className="mt-0.5 block text-[12.5px] text-muted">{r.enquiry_ref}</span>}
       {r.source === 'thread' && r.company_approval === 'approved' && !r.is_read && <span className="mt-1 block text-[12.5px] font-medium text-indigo">AI is reading this now</span>}
     </button>
   );
+}
+
+/** What closing a row covers: that product, or that conversation. */
+function closeTarget(r: SheetRow): CloseTarget {
+  if (r.source === 'item' && r.item_id) return { devItems: [r.item_id] };
+  if (r.source === 'bulk' && r.item_id) return { bulkOrders: [r.item_id] };
+  return { threads: r.thread_id ? [r.thread_id] : [] };
+}
+function mergeTargets(ts: CloseTarget[]): CloseTarget {
+  return { threads: ts.flatMap((t) => t.threads ?? []), devItems: ts.flatMap((t) => t.devItems ?? []), bulkOrders: ts.flatMap((t) => t.bulkOrders ?? []) };
 }
 
 /** What one side said last, and when. */
@@ -583,13 +600,20 @@ function Cell({ col, r, pics, stepLabel }: { col: SheetColumn; r: SheetRow; pics
     case 'last_email':
       return <span className="whitespace-nowrap text-[13.5px] text-muted">{shortDate(r.last_at)}</span>;
     case 'customer_reply':
-      return <SaidCell text={r.customer_status} at={r.last_in_at} empty="—" />;
+      return <SaidCell text={r.customer_status} at={r.customer_on ?? r.last_in_at} empty="—" />;
     case 'grc_reply':
       return (
         <div className="flex flex-col items-start gap-1">
           {r.source === 'bulk' && <BulkStatusText status={r.stage} />}
           {r.source === 'bulk' && stepLabel && <span className="text-[13px] text-muted">Latest step: {stepLabel}</span>}
-          <SaidCell text={r.grc_status} at={r.last_out_at} empty={r.reply_state === 'awaiting' ? 'No reply yet' : '—'} alert={r.reply_state === 'awaiting' && !r.grc_status} />
+          {r.reply_state === 'awaiting' ? (
+            <span className="block text-[13px] leading-snug">
+              <span className="font-semibold text-red">Pending</span>
+              {r.last_in_at && <span className="mt-0.5 block text-[12px] text-muted">customer wrote {shortDate(r.last_in_at)}</span>}
+            </span>
+          ) : (
+            <SaidCell text={r.grc_status} at={r.grc_on ?? r.last_out_at} empty="—" />
+          )}
         </div>
       );
   }

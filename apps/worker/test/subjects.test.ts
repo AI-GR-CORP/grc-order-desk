@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupSubjects, type SheetRow } from '../../web/src/lib/sheet';
+import { subjectBlocks, type SheetRow } from '../../web/src/lib/sheet';
 
 let n = 0;
 function row(p: Partial<SheetRow>): SheetRow {
@@ -11,44 +11,47 @@ function row(p: Partial<SheetRow>): SheetRow {
     thread_id: `t${n}`, thread_subject: null, reply_state: null, waiting_on: null, reply_due_at: null, gmail_thread_id: `g${n}`, mailbox_email: 'yash@grcorporation.co.in',
     email_count: 2, thread_count: 1, is_read: false, last_at: null, origin: 'email', created_at: '2026-10-01T00:00:00Z',
     topics: [], type_confidence: 0.9, type_needs_check: false, type_checked_at: null, type_reason: null,
-    points: [], customer_status: null, grc_status: null, last_in_at: null, last_out_at: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null, closed_at: null,
+    points: [], customer_status: null, grc_status: null, last_in_at: null, last_out_at: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null, closed_at: null, title: null, customer_on: null, grc_on: null,
     ...p,
   } as SheetRow;
 }
 
-describe('groupSubjects', () => {
-  it("puts a client's emails about one brand and type into one subject, with meetings inside it", () => {
+describe('subjectBlocks', () => {
+  it('keeps every enquiry its own row, grouped under one subject heading per brand', () => {
+    const shah = (p: Partial<SheetRow>) => row({ company_id: 'shah', company_name: 'Shah Asia', merchant: 'Krishnan Iyer', ...p });
     const rows = [
-      row({ brand: 'LYLE & SCOTT', thread_subject: 'LYLE & SCOTT- BULK -ORDERS', last_at: '2026-10-23T10:00:00Z', last_in_at: '2026-10-23T10:00:00Z', customer_status: 'Shared order details', topics: ['pp_approval'] }),
-      row({ brand: 'Lyle & Scott', thread_subject: 'LYLE & SCOTT- BULK -2nd-ORDERS', last_at: '2026-10-29T10:00:00Z', last_in_at: '2026-10-29T10:00:00Z', customer_status: 'Asked for sample dates', reply_state: 'awaiting', reply_due_at: '2026-10-29T11:00:00Z' }),
-      row({ brand: 'G-STAR', thread_subject: 'G-STAR BULK ORDER -ELASTIC ORDERS', last_at: '2026-11-03T10:00:00Z', topics: ['complaint'] }),
-      row({ brand: 'G-Star', thread_subject: 'G-star plan', last_at: '2026-10-27T10:00:00Z', last_out_at: '2026-10-28T10:00:00Z', grc_status: 'Confirmed PO quantities' }),
-      row({ brand: 'G-STAR', thread_subject: 'G-STAR elastic discussion', is_meeting: true, last_at: '2026-10-27T09:00:00Z' }),
-      row({ brand: 'G-STAR', source: 'item', row_kind: 'development', item_id: 'i1', thread_id: null, inquiry: 'G-STAR waistband 35MM' }), // a product row stays a row
-      row({ brand: 'G-STAR', company_id: 'other', company_name: 'Other Ltd', thread_subject: 'G-STAR enquiry' }), // another client: never merged
-      row({ brand: null, thread_subject: 'Hello' }), // no brand: its own row
+      shah({ brand: 'Cintas', title: 'Shah Safari Wire - Payment Confirmation', customer_status: 'Confirm receipt of payment' }),
+      row({ brand: 'G-STAR', title: 'G-STAR Bulk Order' }),
+      shah({ brand: 'CINTAS', title: 'FCL Shipment Booking', customer_status: 'Brief CHA, share shipping instructions' }),
+      row({ brand: 'G-Star', title: 'G-STAR elastic discussion', is_meeting: true }),
+      row({ brand: 'LYLE & SCOTT', title: 'LYLE & SCOTT - Bulk Orders' }),
+      shah({ brand: 'Cintas', title: 'Shah Safari Wire - Second Payment' }),
+      row({ brand: 'G-STAR', title: 'G-star plan' }),
+      row({ brand: 'Cintas', company_id: 'other', title: 'Other client Cintas' }), // another client: separate
+      row({ brand: 'UCLA', source: 'item', row_kind: 'development', item_id: 'i1', thread_id: null, inquiry: 'DAISY' }),
+      row({ brand: null, title: 'No brand' }),
     ];
-    const out = groupSubjects(rows);
-    expect(out).toHaveLength(5);
-
-    const lyle = out.find((r) => r.brand?.toLowerCase() === 'lyle & scott')!;
-    expect(lyle.members!.map((m) => m.thread_subject)).toEqual(['LYLE & SCOTT- BULK -ORDERS', 'LYLE & SCOTT- BULK -2nd-ORDERS']);
-    expect(lyle.reply_state).toBe('awaiting');
-    expect(lyle.customer_status).toBe('Asked for sample dates');
-    expect(lyle.topics).toEqual(['pp_approval']);
-    expect(lyle.thread_count).toBe(2);
-
-    const gstar = out.find((r) => r.members && r.brand?.toLowerCase() === 'g-star')!;
-    expect(gstar.members!.map((m) => m.thread_subject)).toEqual(['G-STAR elastic discussion', 'G-star plan', 'G-STAR BULK ORDER -ELASTIC ORDERS']);
-    expect(gstar.members!.filter((m) => m.is_meeting)).toHaveLength(1);
-    expect(gstar.grc_status).toBe('Confirmed PO quantities');
-    expect(gstar.thread_subject).toBe('G-STAR BULK ORDER -ELASTIC ORDERS'); // the latest real enquiry leads
-    expect(out.filter((r) => r.source === 'item')).toHaveLength(1);
-    expect(out.find((r) => r.company_id === 'other')!.members).toBeUndefined();
+    const { rows: out, info } = subjectBlocks(rows);
+    expect(out).toHaveLength(rows.length); // nothing collapsed: one row per enquiry
+    const titles = out.map((r) => r.title ?? r.inquiry);
+    // Cintas (Shah Asia) together, in sort order; then G-STAR with the meeting last; then the rest
+    expect(titles).toEqual([
+      'Shah Safari Wire - Payment Confirmation', 'FCL Shipment Booking', 'Shah Safari Wire - Second Payment',
+      'G-STAR Bulk Order', 'G-star plan', 'G-STAR elastic discussion',
+      'LYLE & SCOTT - Bulk Orders', 'Other client Cintas', 'DAISY', 'No brand',
+    ]);
+    const cintas = info.get(out[0]!.row_id)!;
+    expect(cintas).toMatchObject({ brand: 'Cintas', kind: 'bulk', size: 3, first: true });
+    expect(info.get(out[1]!.row_id)).toMatchObject({ size: 3, first: false });
+    // each enquiry keeps its own customer reply
+    expect(out.slice(0, 2).map((r) => r.customer_status)).toEqual(['Confirm receipt of payment', 'Brief CHA, share shipping instructions']);
+    expect(info.get(out[3]!.row_id)).toMatchObject({ brand: 'G-STAR', size: 3, first: true });
+    expect(info.get(out[7]!.row_id)).toMatchObject({ size: 1 }); // the other client's Cintas
+    expect(info.has(out[9]!.row_id)).toBe(false); // no brand: no subject heading
   });
 
-  it('keeps development and bulk of the same brand apart', () => {
-    const out = groupSubjects([row({ brand: 'UCLA', row_kind: 'development' }), row({ brand: 'UCLA', row_kind: 'bulk' })]);
-    expect(out).toHaveLength(2);
+  it('keeps development and bulk of the same brand as separate subjects', () => {
+    const { info, rows: out } = subjectBlocks([row({ brand: 'UCLA', row_kind: 'development' }), row({ brand: 'UCLA', row_kind: 'bulk' })]);
+    expect(info.get(out[0]!.row_id)!.key).not.toBe(info.get(out[1]!.row_id)!.key);
   });
 });

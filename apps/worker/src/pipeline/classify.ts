@@ -26,6 +26,15 @@ const clean = (v: string | null | undefined, max: number): string | null => {
   return t ? t.slice(0, max) : null;
 };
 
+/** A YYYY-MM-DD date the model copied from the emails; anything else (or a future date) becomes null. */
+export const isoDay = (v: string | null | undefined): string | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((v ?? '').trim());
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!));
+  if (d.getUTCMonth() !== +m[2]! - 1 || d.getTime() > Date.now() + 86_400_000) return null;
+  return m[0];
+};
+
 /** Below this confidence a person is asked to check the type and topics. */
 export const CHECK_BELOW = 0.8;
 const PER_EMAIL_CHARS = 1800;
@@ -199,8 +208,11 @@ export async function applyClassification(
         type_needs_check = ${needsCheck},
         brand            = ${clean(result.brand, 60)},
         points           = ${(result.points ?? []).map((x) => clean(x, 140)).filter(Boolean).slice(0, 5) as string[]},
-        customer_status  = ${clean(result.customer_status, 160)},
-        grc_status       = ${clean(result.grc_status, 160)},
+        title            = ${clean(result.title, 90)},
+        customer_status  = ${clean(result.customer_status, 120)},
+        customer_status_on = ${isoDay(result.customer_status_date)},
+        grc_status       = ${clean(result.grc_status, 120)},
+        grc_status_on    = ${isoDay(result.grc_status_date)},
         is_meeting       = ${Boolean(result.is_meeting)},
         price_quoted     = ${clean(result.price_quoted, 60)},
         sample_status    = ${clean(result.sample_status, 40)},

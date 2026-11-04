@@ -58,7 +58,12 @@ export interface SheetRow {
   sample_status: string | null;
   enquiry_ref: string | null;
   closed_at: string | null;
-  /** Set on a subject row: the conversations about the same brand and type (oldest first). */
+  /** A short heading for the enquiry (the only text in the Inquiry column). */
+  title: string | null;
+  /** Dates of the emails "Customer reply" and "GRC reply" describe. */
+  customer_on: string | null;
+  grc_on: string | null;
+  /** (Legacy; unused.) */
   members?: SheetRow[];
 }
 
@@ -104,11 +109,11 @@ export const SHEET_COLUMNS: SheetColumn[] = [
   { key: 'merchant_name', label: 'Merchant', width: 140, devField: 'merchant_name', kind: 'text', sortable: true },
   { key: 'brand', label: 'Brand', width: 124, devField: 'brand', bulkField: 'brand', kind: 'text', sortable: true },
   { key: 'inquiry', label: 'Inquiry', width: 300, devField: 'inquiry', bulkField: 'description', kind: 'longtext', sortable: true },
+  // What each side said last, per enquiry
+  { key: 'customer_reply', label: 'Customer reply', width: 210 },
+  { key: 'grc_reply', label: 'GRC reply', width: 210 },
   { key: 'picture', label: 'Picture', width: 150 },
   { key: 'brand_status', label: 'Status of brand', width: 164, devField: 'brand_status', kind: 'longtext' },
-  // What each side said last, so a subject can be read at a glance
-  { key: 'customer_reply', label: 'Customer reply', width: 220 },
-  { key: 'grc_reply', label: 'GRC reply', width: 220 },
   // Development: what GRC quoted and where the sample stands
   { key: 'price_quoted', label: 'Price quoted', width: 130, devField: 'grc_rate', kind: 'text' },
   { key: 'sample_status', label: 'Sample approval', width: 140, devField: 'sample_approval', kind: 'text' },
@@ -202,66 +207,62 @@ export function groupByCompany(rows: SheetRow[]): SheetGroup<SheetRow>[] {
 
 const brandKey = (b: string | null) => (b ?? '').toLowerCase().replace(/[^a-z0-9&]+/g, '');
 
-/**
- * One row per subject: a client's conversations about the same brand and type are shown together
- * as numbered enquiries, and a meeting invite about that brand joins its subject instead of being a
- * subject of its own. Product rows (development items, bulk orders) stay one per product.
- */
-export function groupSubjects(rows: SheetRow[]): SheetRow[] {
-  const out: SheetRow[] = [];
-  const subjects = new Map<string, SheetRow[]>();
-  const meetings: SheetRow[] = [];
-  for (const r of rows) {
-    const b = brandKey(r.brand);
-    if (r.source !== 'thread' || !b || !r.company_id) out.push(r);
-    else if (r.is_meeting) meetings.push(r);
-    else {
-      const k = `${r.company_id}|${r.row_kind}|${b}`;
-      subjects.set(k, [...(subjects.get(k) ?? []), r]);
-    }
-  }
-  for (const m of meetings) {
-    const b = brandKey(m.brand);
-    const k = [`${m.company_id}|${m.row_kind}|${b}`, ...[...subjects.keys()].filter((x) => x.startsWith(`${m.company_id}|`) && x.endsWith(`|${b}`))].find((x) => subjects.has(x));
-    if (k) subjects.get(k)!.push(m);
-    else out.push(m);
-  }
-  const t = (s: string | null) => (s ? new Date(s).getTime() : 0);
-  for (const [k, list] of subjects) {
-    if (list.length === 1) {
-      out.push(list[0]!);
-      continue;
-    }
-    const members = [...list].sort((a, b) => t(a.last_at) - t(b.last_at));
-    const latest = [...members].sort((a, b) => t(b.last_at) - t(a.last_at));
-    const main = latest.find((m) => !m.is_meeting) ?? latest[0]!;
-    const lastIn = [...members].sort((a, b) => t(b.last_in_at) - t(a.last_in_at))[0]!;
-    const lastOut = [...members].sort((a, b) => t(b.last_out_at) - t(a.last_out_at))[0]!;
-    const waiting = members.filter((m) => m.reply_state === 'awaiting');
-    out.push({
-      ...main,
-      row_id: `subject:${k}`,
-      members,
-      topics: [...new Set(members.flatMap((m) => m.topics ?? []))],
-      type_needs_check: members.some((m) => m.type_needs_check && !m.type_checked_at),
-      type_checked_at: members.every((m) => m.type_checked_at) ? main.type_checked_at : null,
-      reply_state: waiting.length ? 'awaiting' : main.reply_state,
-      reply_due_at: waiting.map((m) => m.reply_due_at).filter(Boolean).sort()[0] ?? main.reply_due_at,
-      waiting_on: waiting.length ? 'us' : main.waiting_on,
-      customer_status: lastIn.customer_status,
-      last_in_at: lastIn.last_in_at,
-      grc_status: lastOut.grc_status,
-      last_out_at: lastOut.last_out_at,
-      price_quoted: latest.find((m) => m.price_quoted)?.price_quoted ?? null,
-      sample_status: latest.find((m) => m.sample_status)?.sample_status ?? null,
-      email_count: members.reduce((n, m) => n + m.email_count, 0),
-      thread_count: members.length,
-      closed_at: members.every((m) => m.closed_at) ? main.closed_at : null,
-      last_at: latest[0]!.last_at,
-    });
-  }
-  return out;
+export interface SubjectInfo {
+  key: string;
+  brand: string;
+  kind: string;
+  /** Rows in this subject (enquiries, meetings, products). */
+  size: number;
+  /** True on the subject's first row: it carries the merged heading cell. */
+  first: boolean;
+  rows: SheetRow[];
 }
 
-/** The conversations a row stands for (a subject row: all of them). */
-export const rowThreads = (r: SheetRow): string[] => (r.members ?? [r]).map((m) => m.thread_id).filter(Boolean) as string[];
+/**
+ * Within one client: rows about the same brand and type sit together as one subject, under one
+ * heading; a meeting invite joins its brand's subject. Every enquiry stays its own row (with its own
+ * Customer reply / GRC reply and its own Close). Subjects keep the order of the current sort.
+ */
+export function subjectBlocks(rows: SheetRow[]): { rows: SheetRow[]; info: Map<string, SubjectInfo> } {
+  const keyOf = new Map<string, string>();
+  const kinds = new Map<string, Set<string>>(); // company|brand → kinds present (non-meeting)
+  for (const r of rows) {
+    const b = brandKey(r.brand);
+    if (!b || !r.company_id || r.is_meeting) continue;
+    const cb = `${r.company_id}|${b}`;
+    kinds.set(cb, (kinds.get(cb) ?? new Set()).add(r.row_kind));
+  }
+  for (const r of rows) {
+    const b = brandKey(r.brand);
+    if (!b || !r.company_id) continue;
+    let kind: string = r.row_kind;
+    if (r.is_meeting) {
+      const have = kinds.get(`${r.company_id}|${b}`);
+      if (have?.size) kind = have.has(r.row_kind) ? r.row_kind : have.has('bulk') ? 'bulk' : [...have][0]!;
+    }
+    keyOf.set(r.row_id, `${r.company_id}|${kind}|${b}`);
+  }
+  const order: string[] = [];
+  const bySubject = new Map<string, SheetRow[]>();
+  for (const r of rows) {
+    const k = keyOf.get(r.row_id) ?? `row:${r.row_id}`;
+    if (!bySubject.has(k)) {
+      bySubject.set(k, []);
+      order.push(k);
+    }
+    bySubject.get(k)!.push(r);
+  }
+  const out: SheetRow[] = [];
+  const info = new Map<string, SubjectInfo>();
+  for (const k of order) {
+    const list = bySubject.get(k)!;
+    // Real enquiries first, meeting invites after them.
+    const sorted = [...list.filter((r) => !r.is_meeting), ...list.filter((r) => r.is_meeting)];
+    if (!k.startsWith('row:')) {
+      const lead = sorted.find((r) => !r.is_meeting) ?? sorted[0]!;
+      sorted.forEach((r, i) => info.set(r.row_id, { key: k, brand: lead.brand ?? '', kind: k.split('|')[1]!, size: sorted.length, first: i === 0, rows: sorted }));
+    }
+    out.push(...sorted);
+  }
+  return { rows: out, info };
+}

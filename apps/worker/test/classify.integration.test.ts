@@ -8,7 +8,7 @@ import type { ThreadExtraction, ThreadType } from '@grc/core/ai';
 
 const url = process.env.TEST_DATABASE_URL;
 /** Digest fields left empty (tests that don't look at the digest). */
-const NO_DIGEST = { brand: null, points: [], customer_status: null, grc_status: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null };
+const NO_DIGEST = { title: 'Enquiry', customer_status_date: null, grc_status_date: null, brand: null, points: [], customer_status: null, grc_status: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null };
 const d = url ? describe : describe.skip;
 
 process.env.DATABASE_URL = url ?? 'postgres://unused';
@@ -144,6 +144,7 @@ d('conversation sorting (integration)', () => {
       ...NO_DIGEST, is_order: true, order_type: 'bulk', topics: [], evidence: 'Kindly proceed with bulk production', confidence: 0.97, reason: 'The customer placed an order with top quantities.',
       brand: 'PRIMARK', points: ['• New order with top quantities', 'Proceed with bulk production', 'GRC asked to revise POs to $0.078/m', 'x'.repeat(300), 'five', 'six (dropped)'],
       customer_status: 'Will check the price with the buyer', grc_status: 'Asked to revise POs to $0.078/m', price_quoted: '$0.078/m', enquiry_ref: 'SS27',
+      title: 'PRIMARK - SS27 Top Qty Order', customer_status_date: '2026-10-21', grc_status_date: '2099-01-01',
     };
     const o = await mods.classify.classifyThread(ctx, settings, '', primark);
     expect(o).toMatchObject({ category: 'bulk', needsCheck: false });
@@ -152,7 +153,8 @@ d('conversation sorting (integration)', () => {
     expect(t).toMatchObject({ category: 'bulk', topics: [], type_needs_check: false, sorted: true });
     expect(t!.type_reason).toContain('Evidence: "Kindly proceed with bulk production"');
     // The digest: brand, at most 5 short pointers, the latest from each side.
-    const [dg] = await sql`select brand, points, customer_status, grc_status, price_quoted, enquiry_ref from email_thread where id = ${primark}`;
+    const [dg] = await sql`select brand, points, customer_status, grc_status, price_quoted, enquiry_ref, title, customer_status_on::text as c_on, grc_status_on::text as g_on from email_thread where id = ${primark}`;
+    expect(dg).toMatchObject({ title: 'PRIMARK - SS27 Top Qty Order', c_on: '2026-10-21', g_on: null }); // a future date is rejected
     expect(dg!.brand).toBe('PRIMARK');
     expect(dg!.points).toHaveLength(5);
     expect(dg!.points[0]).toBe('New order with top quantities');

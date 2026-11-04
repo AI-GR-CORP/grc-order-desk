@@ -278,3 +278,10 @@ button, [role="button"], a, select, summary { cursor: pointer; }
 .inbox-table td { white-space: normal; vertical-align: top; }
 .inbox-table tr.is-unread td { background: #fff; }
 .inbox-table tbody tr:hover td { background: var(--color-indigo-soft); }
+
+/* the merged heading over a subject's enquiries */
+.sheet td.subject {
+  vertical-align: top;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-grid-strong);
+}

@@ -11,7 +11,7 @@ import { TypeBadges } from './type-cell';
 import { buttonClass, inputClass } from './ui';
 import type { BulkChecklist, StageDef } from './work-sheet';
 import { TypeEditor } from './type-cell';
-import { RowCloseActions, SubjectEnquiryList } from './row-close';
+import { RowCloseActions } from './row-close';
 import { RowPictures } from './row-pictures';
 import { rowTarget, type RowPic } from '@/lib/pictures';
 import { typeInfo } from '@/lib/sheet';
@@ -117,7 +117,30 @@ export function RowPanel({
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           {approveSlot}
 
-          {row.members && <SubjectEnquiryList members={row.members} onDone={onClose} />}
+          {(row.points?.length > 0 || row.customer_status || row.grc_status) && (
+            <section>
+              <h3 className="mb-2 text-[13px] font-semibold text-muted">What's going on</h3>
+              {row.points?.length > 0 && (
+                <ul className="space-y-1 text-[14px] leading-snug text-ink-2">
+                  {row.points.slice(0, 5).map((p, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span aria-hidden className="text-faint">•</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13.5px]">
+                <dt className="text-muted">Customer</dt>
+                <dd className="text-ink-2">{row.customer_status ?? '—'}{row.customer_on ? ` (${shortDate(row.customer_on)})` : ''}</dd>
+                <dt className="text-muted">GRC</dt>
+                <dd className={row.reply_state === 'awaiting' ? 'font-semibold text-red' : 'text-ink-2'}>
+                  {row.reply_state === 'awaiting' ? 'Pending' : row.grc_status ?? '—'}
+                  {row.reply_state !== 'awaiting' && row.grc_on ? ` (${shortDate(row.grc_on)})` : ''}
+                </dd>
+              </dl>
+            </section>
+          )}
 
           {row.thread_id && (
             <section className="rounded-xl border border-line px-4 py-4">
