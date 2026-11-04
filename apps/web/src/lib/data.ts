@@ -99,41 +99,47 @@ export async function getRowPictures(rows: SheetRow[]): Promise<Record<string, R
   const rowsPerThread = new Map<string, number>();
   for (const r of rows) if (r.thread_id) rowsPerThread.set(r.thread_id, (rowsPerThread.get(r.thread_id) ?? 0) + 1);
   const need = rows.filter((r) => !out[r.row_id]?.length && r.thread_id && rowsPerThread.get(r.thread_id) === 1);
-  const threadPics = await getThumbnails(need.map((r) => r.thread_id!));
+  const threadPics = await getThreadPictures(need.map((r) => r.thread_id!));
   for (const r of need) {
-    const urls = threadPics[r.thread_id!];
-    if (urls?.length) out[r.row_id] = urls.map((u) => ({ id: null, thumb: u, full: u, source: 'thread', cell: null }));
+    const pics = threadPics[r.thread_id!];
+    if (pics?.length) out[r.row_id] = pics.map((p) => ({ id: `att:${p.id}`, thumb: p.url, full: p.url, source: 'thread', cell: null }));
+  }
+  return out;
+}
+
+/** Email pictures per thread id (newest first, max 3 per thread), with their attachment ids. */
+export async function getThreadPictures(threadIds: string[]): Promise<Record<string, { url: string; id: string }[]>> {
+  const ids = [...new Set(threadIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+  const admin = createAdmin();
+  const rows: { id: string; thumbnail_path: string; thread_id: string }[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await admin
+      .from('attachment')
+      .select('id, thumbnail_path, email_message!inner(thread_id, sent_at)')
+      .in('email_message.thread_id', ids.slice(i, i + 200))
+      .not('thumbnail_path', 'is', null)
+      .eq('is_signature', false)
+      .neq('thumbnail_path', '');
+    for (const r of (data ?? []) as unknown as { id: string; thumbnail_path: string; email_message: { thread_id: string } }[]) {
+      rows.push({ id: r.id, thumbnail_path: r.thumbnail_path, thread_id: r.email_message.thread_id });
+    }
+  }
+  if (rows.length === 0) return {};
+  const { data: signed } = await admin.storage.from('thumbnails').createSignedUrls(rows.map((r) => r.thumbnail_path), 3600);
+  const byPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  const out: Record<string, { url: string; id: string }[]> = {};
+  for (const r of rows) {
+    const url = byPath.get(r.thumbnail_path);
+    if (!url) continue;
+    const list = (out[r.thread_id] ??= []);
+    if (list.length < 3) list.push({ url, id: r.id });
   }
   return out;
 }
 
 /** Signed thumbnail URLs per thread id (newest first, max 3 per thread). */
 export async function getThumbnails(threadIds: string[]): Promise<Record<string, string[]>> {
-  const ids = [...new Set(threadIds.filter(Boolean))];
-  if (ids.length === 0) return {};
-  const admin = createAdmin();
-  const rows: { thumbnail_path: string; thread_id: string }[] = [];
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await admin
-      .from('attachment')
-      .select('thumbnail_path, email_message!inner(thread_id, sent_at)')
-      .in('email_message.thread_id', ids.slice(i, i + 200))
-      .not('thumbnail_path', 'is', null)
-      .eq('is_signature', false)
-      .neq('thumbnail_path', '');
-    for (const r of (data ?? []) as unknown as { thumbnail_path: string; email_message: { thread_id: string } }[]) {
-      rows.push({ thumbnail_path: r.thumbnail_path, thread_id: r.email_message.thread_id });
-    }
-  }
-  if (rows.length === 0) return {};
-  const { data: signed } = await admin.storage.from('thumbnails').createSignedUrls(rows.map((r) => r.thumbnail_path), 3600);
-  const byPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
-  const out: Record<string, string[]> = {};
-  for (const r of rows) {
-    const url = byPath.get(r.thumbnail_path);
-    if (!url) continue;
-    const list = (out[r.thread_id] ??= []);
-    if (list.length < 3) list.push(url);
-  }
-  return out;
+  const pics = await getThreadPictures(threadIds);
+  return Object.fromEntries(Object.entries(pics).map(([k, v]) => [k, v.map((p) => p.url)]));
 }

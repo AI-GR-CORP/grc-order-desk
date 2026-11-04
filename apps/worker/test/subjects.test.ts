@@ -11,7 +11,7 @@ function row(p: Partial<SheetRow>): SheetRow {
     thread_id: `t${n}`, thread_subject: null, reply_state: null, waiting_on: null, reply_due_at: null, gmail_thread_id: `g${n}`, mailbox_email: 'yash@grcorporation.co.in',
     email_count: 2, thread_count: 1, is_read: false, last_at: null, origin: 'email', created_at: '2026-10-01T00:00:00Z',
     topics: [], type_confidence: 0.9, type_needs_check: false, type_checked_at: null, type_reason: null,
-    points: [], customer_status: null, grc_status: null, last_in_at: null, last_out_at: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null, closed_at: null, title: null, customer_on: null, grc_on: null,
+    points: [], customer_status: null, grc_status: null, last_in_at: null, last_out_at: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null, closed_at: null, title: null, customer_on: null, grc_on: null, awaiting_grc: false,
     ...p,
   } as SheetRow;
 }

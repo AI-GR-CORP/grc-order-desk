@@ -63,6 +63,8 @@ export interface SheetRow {
   /** Dates of the emails "Customer reply" and "GRC reply" describe. */
   customer_on: string | null;
   grc_on: string | null;
+  /** The AI's judgement: GRC still owes an answer to the customer's latest request. */
+  awaiting_grc: boolean;
   /** (Legacy; unused.) */
   members?: SheetRow[];
 }
@@ -265,4 +267,9 @@ export function subjectBlocks(rows: SheetRow[]): { rows: SheetRow[]; info: Map<s
     out.push(...sorted);
   }
   return { rows: out, info };
+}
+
+/** A row's heading when it has no inquiry text (sheet rows that only had a picture). */
+export function fallbackHeading(r: Pick<SheetRow, 'brand' | 'product_code' | 'merchant' | 'origin' | 'thread_subject'>): string {
+  return r.brand || r.product_code || r.thread_subject || (r.origin === 'sheet_import' ? 'Enquiry from your sheet' : r.merchant ? `Enquiry from ${r.merchant}` : 'Enquiry');
 }

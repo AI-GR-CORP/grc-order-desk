@@ -91,4 +91,14 @@ describe('buildLearningContext', () => {
     expect(out).toContain('ARVIND FASHION | UCLA | DAISY | - | SAMPLES DISPATCH');
     expect(out).toContain('stage (UCLA DAISY): AI wrote "prices_shared" → team changed it to "sample_dispatched"');
   });
+
+  it('isInternal: GRC domains, subdomains and listed GRC staff addresses', async () => {
+    const { isInternal } = await import('../src/mail/addresses');
+    const list = ['grcorporation.co.in', 'atif.rooma@gmail.com'];
+    expect(isInternal('yash@grcorporation.co.in', list)).toBe(true);
+    expect(isInternal('a@lk.grcorporation.co.in', list)).toBe(true);
+    expect(isInternal('Atif.Rooma@Gmail.com', list)).toBe(true); // listed GRC staff address
+    expect(isInternal('someone@gmail.com', list)).toBe(false);   // other Gmail users stay customers
+    expect(isInternal('buyer@arvind.in', list)).toBe(false);
+  });
 });

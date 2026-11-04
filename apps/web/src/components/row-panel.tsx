@@ -14,6 +14,7 @@ import { TypeEditor } from './type-cell';
 import { RowCloseActions } from './row-close';
 import { RowPictures } from './row-pictures';
 import { rowTarget, type RowPic } from '@/lib/pictures';
+import { fallbackHeading } from '@/lib/sheet';
 import { typeInfo } from '@/lib/sheet';
 
 /** Everything about one row, in a side panel: every column as a labelled field you can edit. */
@@ -56,7 +57,7 @@ export function RowPanel({
   const more = SHEET_COLUMNS.filter((c) => c.extra && field(c));
   const save = (c: SheetColumn) => (v: string | null) =>
     row.source === 'bulk' ? updateBulkField(row.item_id!, c.bulkField!, v) : updateDevField(row.item_id!, c.devField!, v);
-  const title = row.source === 'thread' ? row.thread_subject || '(no subject)' : row.inquiry || row.thread_subject || 'Untitled row';
+  const title = row.source === 'thread' ? row.title || row.thread_subject || '(no subject)' : row.inquiry || fallbackHeading(row);
 
   return (
     <div className="fixed inset-0 z-50" role="presentation">
@@ -134,9 +135,9 @@ export function RowPanel({
                 <dt className="text-muted">Customer</dt>
                 <dd className="text-ink-2">{row.customer_status ?? '—'}{row.customer_on ? ` (${shortDate(row.customer_on)})` : ''}</dd>
                 <dt className="text-muted">GRC</dt>
-                <dd className={row.reply_state === 'awaiting' ? 'font-semibold text-red' : 'text-ink-2'}>
-                  {row.reply_state === 'awaiting' ? 'Pending' : row.grc_status ?? '—'}
-                  {row.reply_state !== 'awaiting' && row.grc_on ? ` (${shortDate(row.grc_on)})` : ''}
+                <dd className={row.reply_state === 'awaiting' || row.awaiting_grc ? 'font-semibold text-red' : 'text-ink-2'}>
+                  {row.reply_state === 'awaiting' || row.awaiting_grc ? 'Pending' : row.grc_status ?? '—'}
+                  {!(row.reply_state === 'awaiting' || row.awaiting_grc) && row.grc_on ? ` (${shortDate(row.grc_on)})` : ''}
                 </dd>
               </dl>
             </section>

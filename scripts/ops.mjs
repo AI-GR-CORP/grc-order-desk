@@ -13,6 +13,7 @@
  *   pnpm ops worker               start the worker (keeps the Mac awake)
  *   pnpm ops reclassify [--apply]  re-sort conversations: Development / Bulk + topics (shows the cost first)
  *   pnpm ops pictures <xlsx> [--apply]  bring the sheet's rows and pictures in (check page first)
+ *   pnpm ops staff [--apply]      GRC staff writing from other addresses: list, then mark as GRC
  *
  * Secrets live ONLY in .env.local at the repo root (gitignored, mode 600).
  * This script never prints a secret value: only names, lengths and check results.
@@ -786,6 +787,60 @@ function cmdPictures(apply) {
   }
 }
 
+/**
+ * GRC staff who write from personal or regional addresses: list them (name contains "GRC", or
+ * GRC's signature in their own email), then --apply adds them to GRC's list and recomputes which
+ * emails are GRC's. --add a@b.com,c@d.com adds addresses by hand.
+ */
+async function cmdStaff(apply) {
+  const s = loadSecrets();
+  const sql = db(s);
+  try {
+    const [row] = await sql`select value from app_setting where key = 'internal_domains'`;
+    const list = Array.isArray(row?.value) ? row.value.map((x) => String(x).toLowerCase()) : ['grcorporation.co.in', 'grcorporation.com'];
+    const inList = (e) => list.some((x) => (x.includes('@') ? e === x : e.endsWith('@' + x) || e.split('@')[1]?.endsWith('.' + x)));
+    const found = await sql`
+      select lower(m.from_email) as email, max(m.from_name) as name, count(*)::int as n,
+             bool_or(coalesce(m.from_name, '') ~* '\\mgrc\\M') as by_name
+      from email_message m
+      where m.direction = 'inbound'
+        and (coalesce(m.from_name, '') ~* '\\mgrc\\M'
+             or right(coalesce(m.body_clean, ''), 700) ~* 'g\\.?\\s?r\\.?\\s+corporation')
+      group by 1 order by n desc`;
+    const addArg = process.argv.find((a) => a.startsWith('--add='))?.slice(6) ?? (process.argv.includes('--add') ? process.argv[process.argv.indexOf('--add') + 1] : '');
+    const manual = (addArg ?? '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@'));
+    const suspects = found.filter((f) => !inList(f.email));
+    section('GRC staff writing from other addresses');
+    ok(`GRC's list now: ${list.join(', ')}`);
+    if (!suspects.length && !manual.length) {
+      ok('No other GRC staff addresses found.');
+      return;
+    }
+    for (const f of suspects) console.log(`  ${c.y('?')} ${f.email.padEnd(38)} ${String(f.name ?? '').slice(0, 30).padEnd(30)} ${f.n} emails  (${f.by_name ? '"GRC" in the name' : 'GRC signature'})`);
+    for (const m of manual) console.log(`  ${c.y('+')} ${m.padEnd(38)} (added by hand)`);
+    if (!apply) {
+      console.log(`\n  Nothing changed. If these are all GRC staff, run ${c.b('pnpm ops staff --apply')}.`);
+      console.log(`  To add only some, run ${c.b('pnpm ops staff --apply --only')} with ${c.b('--add a@x.com,b@y.com')}.\n`);
+      return;
+    }
+    const add = flag('--only') ? manual : [...suspects.map((f) => f.email), ...manual];
+    const next = [...new Set([...list, ...add])];
+    await sql`update app_setting set value = ${sql.json(next)} where key = 'internal_domains'`;
+    ok(`Added ${add.length} address(es) to GRC's list.`);
+    const mbs = await sql`select id from mailbox where status = 'active'`;
+    for (const mb of mbs) {
+      await sql`
+        insert into job (kind, mailbox_id, payload, dedupe_key, priority)
+        values ('refresh_directions', ${mb.id}, '{}', ${'refresh_directions:' + mb.id}, 6)
+        on conflict (dedupe_key) where dedupe_key is not null and status in ('queued','running') do nothing`;
+    }
+    ok('Queued: recompute which emails are GRC\'s and each conversation\'s reply state (the worker does this in a minute; no AI cost).');
+    console.log(`  Then run ${c.b('pnpm ops reclassify --apply')} so the replies are re-read with the right sides.\n`);
+  } finally {
+    await sql.end({ timeout: 2 }).catch(() => {});
+  }
+}
+
 const commands = {
   init: cmdInit,
   env: cmdEnv,
@@ -798,9 +853,10 @@ const commands = {
   worker: cmdWorker,
   reclassify: () => cmdReclassify(flag('--apply')),
   pictures: () => cmdPictures(flag('--apply')),
+  staff: () => cmdStaff(flag('--apply')),
 };
 if (!commands[cmd]) {
-  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 16).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
+  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 17).map((l) => l.replace(/^ \* ?/, '')).join('\n'));
   process.exit(cmd ? 1 : 0);
 }
 Promise.resolve(commands[cmd]()).catch((e) => die(e.message));

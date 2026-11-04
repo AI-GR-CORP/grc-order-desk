@@ -8,7 +8,7 @@ import type { ThreadExtraction, ThreadType } from '@grc/core/ai';
 
 const url = process.env.TEST_DATABASE_URL;
 /** Digest fields left empty (tests that don't look at the digest). */
-const NO_DIGEST = { title: 'Enquiry', customer_status_date: null, grc_status_date: null, brand: null, points: [], customer_status: null, grc_status: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null };
+const NO_DIGEST = { title: 'Enquiry', customer_status_date: null, grc_status_date: null, awaiting_grc: false, brand: null, points: [], customer_status: null, grc_status: null, is_meeting: false, price_quoted: null, sample_status: null, enquiry_ref: null };
 const d = url ? describe : describe.skip;
 
 process.env.DATABASE_URL = url ?? 'postgres://unused';

@@ -119,6 +119,7 @@ export const ThreadTypeSchema = z.object({
   customer_status_date: maybe.describe('The date (YYYY-MM-DD) of the email that customer_status describes, else null'),
   grc_status: maybe.describe("GRC's latest MEANINGFUL response, at most 10 words, e.g. 'Payment received and confirmed', 'Invoice and packing list sent', 'Sample details shared'. Skip acknowledgement-only emails. null if GRC has not replied."),
   grc_status_date: maybe.describe('The date (YYYY-MM-DD) of the email that grc_status describes, else null'),
+  awaiting_grc: z.boolean().describe("true when the customer's latest meaningful request has NOT yet been answered by GRC with substance (an internal forward, adding colleagues, or 'noted, will check' is not an answer)"),
   is_meeting: z.boolean().describe('true when the conversation is only a meeting / call / calendar invite'),
   price_quoted: maybe.describe('The latest price GRC quoted, with unit and currency as written (e.g. "$0.078/m"). null if none.'),
   sample_status: maybe.describe('Sample approval status in 1-3 words (e.g. "Approved", "Pending", "Rejected", "Comments received"). null if no sample is involved.'),

@@ -56,9 +56,19 @@ export function domainOf(email: string): string {
   return email.slice(email.lastIndexOf('@') + 1).toLowerCase();
 }
 
+/**
+ * GRC's own: a GRC domain (and its subdomains), or an individual address listed as GRC staff
+ * (people who write from a personal or regional address).
+ */
 export function isInternal(email: string, internalDomains: readonly string[]): boolean {
-  const d = domainOf(email);
-  return internalDomains.some((x) => d === x.toLowerCase() || d.endsWith('.' + x.toLowerCase()));
+  const e = email.trim().toLowerCase();
+  const d = domainOf(e);
+  return internalDomains.some((raw) => {
+    const x = raw.trim().toLowerCase();
+    if (!x) return false;
+    if (x.includes('@')) return e === x;
+    return d === x || d.endsWith('.' + x);
+  });
 }
 
 export function isFreemail(email: string, freemailDomains: readonly string[]): boolean {

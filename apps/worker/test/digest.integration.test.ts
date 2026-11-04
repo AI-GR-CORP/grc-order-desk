@@ -76,4 +76,45 @@ d('digest, logos, recalls (integration)', () => {
     const [item] = await sql`select brand from v_sheet_rows where source = 'item' and thread_id = ${t}`;
     expect(item!.brand).toBe('LYLE & SCOTT');
   });
+
+  it('a logo that appears in 3+ different conversations is flagged, whoever sent it', async () => {
+    const ids = [];
+    for (const [i, from] of ['a@shori.in', 'b@grc.lk', 'c@arvind.in'].entries()) {
+      const t = await thread(`Logo test ${i}`);
+      await message(t, `logo-${i}`, from, [{ name: `image00${i}.png`, size: 77777 }, { name: `photo${i}.jpg`, size: 500000 + i }]);
+      ids.push(t);
+    }
+    await sql`select mark_signature_images()`;
+    const logos = await sql`select is_signature from attachment where size_bytes = 77777`;
+    expect(logos).toHaveLength(3);
+    expect(logos.every((r) => r.is_signature)).toBe(true);
+    const photos = await sql`select is_signature from attachment where filename like 'photo%'`;
+    expect(photos).toHaveLength(3);
+    expect(photos.some((r) => r.is_signature)).toBe(false);
+    // the earlier one-off image from another sender, in one conversation, is still not a logo
+    const [oneOff] = await sql`select a.is_signature from attachment a join email_message m on m.id = a.message_id where m.from_email = 'someone@other.com'`;
+    expect(oneOff!.is_signature).toBe(false);
+  });
+
+  it('after a GRC staff address is listed, their emails count as GRC replies and the reply state follows', async () => {
+    const t = await thread('Shori Trends - Payment Advice');
+    await sql`update email_message set sent_at = now() where false`;
+    const [c] = await sql<{ id: string }[]>`
+      insert into email_message (thread_id, gmail_message_id, direction, from_email, from_name, to_emails, sent_at, needs_reply)
+      values (${t}, 'pay-1', 'inbound', 'accounts@shori.in', 'accounts shori', '{yash@grcorporation.co.in}', now() - interval '3 hours', true) returning id`;
+    await sql`
+      insert into email_message (thread_id, gmail_message_id, direction, from_email, from_name, to_emails, sent_at, needs_reply)
+      values (${t}, 'pay-2', 'inbound', 'atif.rooma@gmail.com', 'Atif GRC Rooma', '{accounts@shori.in}', now() - interval '1 hour', null)`;
+    await sql`update app_setting set value = ${sql.json(['grcorporation.co.in', 'grcorporation.com', 'atif.rooma@gmail.com'] as never)} where key = 'internal_domains'`;
+    const { runRefreshDirections } = await import('../src/jobs/refresh-directions');
+    const { log } = await import('../src/log');
+    await runRefreshDirections({ sql, log, storage: null } as never, mb);
+    const msgs = await sql`select gmail_message_id, direction from email_message where thread_id = ${t} order by sent_at`;
+    expect(msgs.map((m) => `${m.gmail_message_id}:${m.direction}`)).toEqual(['pay-1:inbound', 'pay-2:outbound']);
+    const [th] = await sql`select last_outbound_at is not null as answered, reply_state::text from email_thread where id = ${t}`;
+    expect(th!.answered).toBe(true);
+    expect(th!.reply_state).not.toBe('awaiting');
+    expect(c).toBeTruthy();
+    await sql`update app_setting set value = ${sql.json(['grcorporation.co.in', 'grcorporation.com'] as never)} where key = 'internal_domains'`;
+  });
 });

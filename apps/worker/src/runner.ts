@@ -3,6 +3,7 @@ import { errorMessage, NonRetryableError } from './errors';
 import { runBackfill } from './jobs/backfill';
 import { runClassifyBackfill } from './jobs/classify-backfill';
 import { runPictureBackfill } from './jobs/picture-backfill';
+import { runRefreshDirections } from './jobs/refresh-directions';
 import { runExtractBackfill } from './jobs/extract-backfill';
 import { runExtractCompany } from './jobs/extract-company';
 import { runReprocess } from './jobs/reprocess';
@@ -26,6 +27,9 @@ async function dispatch(ctx: Ctx, job: Job): Promise<void> {
     }
     case 'classify_backfill':
       return runClassifyBackfill(ctx, job);
+    case 'refresh_directions':
+      if (!job.mailbox_id) throw new NonRetryableError('refresh_directions without mailbox');
+      return runRefreshDirections(ctx, job.mailbox_id);
     case 'picture_backfill':
       if (!job.mailbox_id) throw new NonRetryableError('picture_backfill without mailbox');
       return runPictureBackfill(ctx, job.mailbox_id);

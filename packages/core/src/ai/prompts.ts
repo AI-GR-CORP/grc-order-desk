@@ -110,7 +110,8 @@ DIGEST (GRC skims every client in minutes, so be specific and short):
 - points: at most 5 pointers, each under 15 words, with the facts that matter: what is asked, quantities, dates, prices, decisions, what is pending. No greetings, signatures or filler.
 - title: a short heading for this enquiry (max 7 words), e.g. "Shah Safari Wire - Payment Confirmation", "G-STAR Bulk Order", "LYLE & SCOTT - 2nd Bulk Orders". It is the only thing shown in the Inquiry column, so no summaries, dates or quantities.
 - customer_status: what the customer last asked GRC or told GRC that matters, as a short ask (max 10 words): "Confirm receipt of payment", "Requested order status update", "Requested sample approval". It is NOT a summary of the email: if a payment email says the wire was released and asks GRC to confirm receipt, write "Confirm receipt of payment".
-- grc_status: GRC's last meaningful response (max 10 words): "Payment received and confirmed", "Invoice and packing list sent", "Sample details shared".
+- grc_status: GRC's last meaningful response TO THE CUSTOMER (max 10 words): "Payment received and confirmed", "Invoice and packing list sent", "Sample details shared". Forwarding internally, adding colleagues to the thread, or notes between GRC staff are not responses to the customer: leave those out.
+- awaiting_grc: true when the customer's latest meaningful request has not yet been answered by GRC with substance (e.g. the customer asked to confirm receipt of payment and GRC has not confirmed). false when GRC answered it, when the customer's latest email needs no answer, or when GRC is the one waiting for the customer.
 - Track the two sides separately: a reply from one side never makes the other side "replied". Ignore thank-you / acknowledgement-only emails for both. Give the date of the email each one describes (customer_status_date, grc_status_date).
 - price_quoted, sample_status, enquiry_ref: only when the emails state them.
 

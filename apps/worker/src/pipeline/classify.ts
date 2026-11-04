@@ -213,6 +213,7 @@ export async function applyClassification(
         customer_status_on = ${isoDay(result.customer_status_date)},
         grc_status       = ${clean(result.grc_status, 120)},
         grc_status_on    = ${isoDay(result.grc_status_date)},
+        awaiting_grc     = ${Boolean(result.awaiting_grc)},
         is_meeting       = ${Boolean(result.is_meeting)},
         price_quoted     = ${clean(result.price_quoted, 60)},
         sample_status    = ${clean(result.sample_status, 40)},

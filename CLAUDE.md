@@ -87,6 +87,12 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 - Grid columns: removed Sample collected, Status of Poornima, Yash remark (owner's request; don't add them back). Added Customer reply, GRC reply, Price quoted (dev `grc_rate`), Sample approval (dev `sample_approval`). Bulk progress shows in GRC reply. Type filter is in the Type column header.
 - Close (subject / enquiry; a new customer email reopens a subject) and Skip (not order work; saved as a lesson) live in the details panel. Recall emails ("Recall: …") are never tracked. Signature logos (same sender, same image size, 3+ emails) are never pictures.
 
+## GRC vs customer, Pending, logos
+
+- An email is GRC's when it comes from a GRC domain OR an address in GRC's list (`internal_domains` may hold full addresses for staff on personal/regional mail). `pnpm ops staff` lists likely staff (name contains "GRC", or GRC's signature) and `--apply` adds them + queues `refresh_directions` (recomputes direction, last in/out, reply state). Re-sort afterwards.
+- GRC reply shows Pending when `reply_state = awaiting` OR the AI's `awaiting_grc` (customer's latest request not answered with substance). Internal forwards / adding colleagues are never GRC replies.
+- Logos: same sender + same image size in 3+ emails, or same size in 3+ different conversations. "Not a product picture" on an email picture hides it and its identical copies everywhere.
+
 ## Before saying something is done
 `pnpm typecheck && pnpm test`; for UI changes also `pnpm --filter @grc/web build`; for migrations run the integration tests on a local Postgres. Then `pnpm ops deploy` and `pnpm ops check`.
 

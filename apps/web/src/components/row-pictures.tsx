@@ -117,8 +117,8 @@ export function RowPictures({ pictures, target }: { pictures: RowPic[]; target: 
                   type="button"
                   onClick={() => remove(p)}
                   disabled={busy}
-                  aria-label="Remove this picture"
-                  title="Remove this picture"
+                  aria-label={p.id.startsWith('att:') ? 'Not a product picture' : 'Remove this picture'}
+                  title={p.id.startsWith('att:') ? 'Not a product picture (a logo or signature): hide it everywhere' : 'Remove this picture'}
                   className="absolute right-1 top-1 grid size-7 place-items-center rounded-full bg-surface/95 text-[15px] leading-none text-ink-2 shadow-sm ring-1 ring-line hover:text-red focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                 >
                   ×

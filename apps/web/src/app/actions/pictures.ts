@@ -62,6 +62,17 @@ export async function addRowPicture(form: FormData): Promise<ActionResult> {
 export async function hideRowPicture(id: string): Promise<ActionResult> {
   return run(async () => {
     await assertUser();
+    if (id.startsWith('att:')) {
+      // "Not a product picture": a logo or signature banner. Hide it, and its identical copies, everywhere.
+      const admin = createAdmin();
+      const attId = id.slice(4);
+      const { data: a } = await admin.from('attachment').select('size_bytes').eq('id', attId).maybeSingle();
+      const q = admin.from('attachment').update({ is_signature: true });
+      const { error } = a?.size_bytes ? await q.or(`id.eq.${attId},and(kind.eq.image,size_bytes.eq.${a.size_bytes})`) : await q.eq('id', attId);
+      if (error) throw new Error(error.message);
+      refreshSheets();
+      return;
+    }
     const supabase = await createSupabase();
     const { error } = await supabase.from('row_picture').update({ hidden: true }).eq('id', id);
     if (error) throw new Error(error.message);

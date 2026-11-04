@@ -14,6 +14,7 @@ import {
   COMPANY_LABEL,
   DEFAULT_COLUMNS,
   groupByCompany,
+  fallbackHeading,
   subjectBlocks,
   type SubjectInfo,
   isWaiting,
@@ -70,7 +71,7 @@ interface Props {
 
 const GROUPS_PER_PAGE = 60;
 
-const titleOf = (r: SheetRow) => (r.source === 'thread' ? r.thread_subject || '(no subject)' : r.inquiry || r.thread_subject || 'Untitled row');
+const titleOf = (r: SheetRow) => (r.source === 'thread' ? r.thread_subject || '(no subject)' : r.inquiry || fallbackHeading(r));
 
 function compare(sort: SortState, a: SheetRow, b: SheetRow): number {
   const dir = sort.dir === 'asc' ? 1 : -1;
@@ -554,7 +555,7 @@ function InquiryCell({ r, onOpen }: { r: SheetRow; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group/p block w-full text-left" title="Open the details">
       <span className={cx('line-clamp-2 text-ink group-hover/p:text-indigo group-hover/p:underline group-hover/p:decoration-indigo/30 group-hover/p:underline-offset-2', r.source === 'thread' && 'font-medium')}>
-        {r.source === 'thread' ? `${r.is_meeting ? 'Meeting · ' : ''}${r.title || cleanSubject(r.thread_subject) || titleOf(r)}` : titleOf(r)}
+        {r.source === 'thread' ? `${r.is_meeting && !/meeting|call|invite/i.test(r.title ?? '') ? 'Meeting · ' : ''}${r.title || cleanSubject(r.thread_subject) || titleOf(r)}` : titleOf(r)}
       </span>
       {r.source === 'bulk' && (r.po_number || r.qty_mtrs) && (
         <span className="mt-0.5 block text-[13px] text-muted">
@@ -604,12 +605,12 @@ function Cell({ col, r, pics, stepLabel }: { col: SheetColumn; r: SheetRow; pics
     case 'grc_reply':
       return (
         <div className="flex flex-col items-start gap-1">
-          {r.source === 'bulk' && <BulkStatusText status={r.stage} />}
+          {r.source === 'bulk' && r.stage && r.stage !== 'open' && <BulkStatusText status={r.stage} />}
           {r.source === 'bulk' && stepLabel && <span className="text-[13px] text-muted">Latest step: {stepLabel}</span>}
-          {r.reply_state === 'awaiting' ? (
+          {(r.reply_state === 'awaiting' || r.awaiting_grc) && !r.closed_at ? (
             <span className="block text-[13px] leading-snug">
               <span className="font-semibold text-red">Pending</span>
-              {r.last_in_at && <span className="mt-0.5 block text-[12px] text-muted">customer wrote {shortDate(r.last_in_at)}</span>}
+              {(r.customer_on || r.last_in_at) && <span className="mt-0.5 block text-[12px] text-muted">customer wrote {shortDate(r.customer_on ?? r.last_in_at)}</span>}
             </span>
           ) : (
             <SaidCell text={r.grc_status} at={r.grc_on ?? r.last_out_at} empty="—" />
