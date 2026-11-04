@@ -91,6 +91,7 @@ Integration tests need a Postgres with the migrations applied and `TEST_DATABASE
 
 - An email is GRC's when it comes from a GRC domain OR an address in GRC's list (`internal_domains` may hold full addresses for staff on personal/regional mail). `pnpm ops staff` lists likely staff (name contains "GRC", or GRC's signature) and `--apply` adds them + queues `refresh_directions` (recomputes direction, last in/out, reply state). Re-sort afterwards.
 - GRC reply shows Pending when `reply_state = awaiting` OR the AI's `awaiting_grc` (customer's latest request not answered with substance). Internal forwards / adding colleagues are never GRC replies.
+- The worker's DB role rolls back sessions idle inside a transaction for 60s (`idle_in_transaction_session_timeout`), so a killed worker can't leave locks behind. `refresh_directions` is idempotent: one SQL statement moves emails (`refresh_message_directions`), then `recomputeReply` for every conversation.
 - Logos: same sender + same image size in 3+ emails, or same size in 3+ different conversations. "Not a product picture" on an email picture hides it and its identical copies everywhere.
 
 ## Before saying something is done

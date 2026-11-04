@@ -117,4 +117,29 @@ d('digest, logos, recalls (integration)', () => {
     expect(c).toBeTruthy();
     await sql`update app_setting set value = ${sql.json(['grcorporation.co.in', 'grcorporation.com'] as never)} where key = 'internal_domains'`;
   });
+
+  it('the recompute repairs what an interrupted run left behind, and a second run changes nothing', async () => {
+    const t = await thread('Interrupted run');
+    await sql`
+      insert into email_message (thread_id, gmail_message_id, direction, from_email, from_name, to_emails, sent_at, needs_reply)
+      values (${t}, 'int-1', 'inbound', 'buyer@arvind.in', 'Buyer', '{yash@grcorporation.co.in}', now() - interval '3 hours', true),
+             (${t}, 'int-2', 'outbound', 'sales5@grcorporation.in', 'Purnima GRC', '{buyer@arvind.in}', now() - interval '1 hour', null)`;
+    // As if a broken run had already moved Purnima's email but stopped before fixing the conversation.
+    await sql`update email_thread set last_inbound_at = now() - interval '3 hours', last_outbound_at = null, reply_state = 'awaiting' where id = ${t}`;
+    await sql`update app_setting set value = ${sql.json(['grcorporation.co.in', 'grcorporation.com', 'grcorporation.in'] as never)} where key = 'internal_domains'`;
+    const { runRefreshDirections } = await import('../src/jobs/refresh-directions');
+    const { log } = await import('../src/log');
+    await runRefreshDirections({ sql, log, storage: null } as never, mb);
+    const [th] = await sql`select last_outbound_at is not null as answered, reply_state::text from email_thread where id = ${t}`;
+    expect(th).toMatchObject({ answered: true });
+    expect(th!.reply_state).not.toBe('awaiting');
+    const again = await sql`select thread_id from refresh_message_directions(${mb}::uuid)`;
+    expect(again).toHaveLength(0);
+    // Running the whole job again leaves the conversation exactly as it is.
+    const before = await sql`select last_inbound_at, last_outbound_at, reply_state::text from email_thread where id = ${t}`;
+    await runRefreshDirections({ sql, log, storage: null } as never, mb);
+    const after = await sql`select last_inbound_at, last_outbound_at, reply_state::text from email_thread where id = ${t}`;
+    expect(after).toEqual(before);
+    await sql`update app_setting set value = ${sql.json(['grcorporation.co.in', 'grcorporation.com'] as never)} where key = 'internal_domains'`;
+  });
 });
